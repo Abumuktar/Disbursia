@@ -15,9 +15,9 @@ export const PROFILES: Record<string, ProgrammeProfile> = {
   PHC: { prefix: 'PHC', amount: (r) => (r() < 0.6 ? 25000 : 35000) * 100 },
 };
 
-export function generateBeneficiaries(programmeCode: string, count: number, seed: number, invalidRate = 0.003): ParsedRow[] {
+export function generateBeneficiaries(programmeCode: string, count: number, seed: number, invalidRate = 0.003, standardAmount?: number): ParsedRow[] {
   const r = mulberry32(seed);
-  const profile = PROFILES[programmeCode] ?? PROFILES.YEAP;
+  const profile = PROFILES[programmeCode] ?? { prefix: programmeCode, amount: () => standardAmount ?? 25000_00 };
   const rows: ParsedRow[] = [];
   for (let i = 0; i < count; i++) {
     const bankCode = pick(r, WEIGHTED_BANKS);

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ArrowRight, Download, FileSpreadsheet, Info, Sparkles, UploadCloud, X } from 'lucide-react';
 import { useAppState } from '../lib/store';
 import { useMe } from '../lib/hooks';
@@ -23,7 +23,8 @@ export default function NewDisbursement() {
   const programmes = useAppState((s) => s.programmes);
   const account = useAppState((s) => s.accounts[0]);
   const nav = useNavigate();
-  const [programmeId, setProgrammeId] = useState(programmes[0].id);
+  const [params] = useSearchParams();
+  const [programmeId, setProgrammeId] = useState(programmes.find((p) => p.id === params.get('programme'))?.id ?? programmes[0].id);
   const periodOptions = useMemo(periods, []);
   const [period, setPeriod] = useState(periodOptions[1]);
   const [narration, setNarration] = useState('');
@@ -56,13 +57,13 @@ export default function NewDisbursement() {
   };
 
   const useSample = () => {
-    const rows = generateBeneficiaries(prog.code, sampleSize, Date.now() % 100000, 0.004);
+    const rows = generateBeneficiaries(prog.code, sampleSize, Date.now() % 100000, 0.004, prog.standardAmount);
     setParsed({ rows, issues: [], columns: ['beneficiary_id', 'account_number', 'bank_code', 'account_name', 'amount'] });
     setFileName(`${prog.code.toLowerCase()}_${period.replace(' ', '_').toLowerCase()}_sample.csv`);
   };
 
   const template = () => {
-    const rows = generateBeneficiaries(prog.code, 5, 42, 0);
+    const rows = generateBeneficiaries(prog.code, 5, 42, 0, prog.standardAmount);
     download('disbursia_template.csv', toCsv([
       ['beneficiary_id', 'account_number', 'bank_code', 'account_name', 'amount'],
       ...rows.map((r) => [r.beneficiaryId ?? '', r.accountNumber, r.bankCode, r.name, (r.amount / 100).toFixed(2)]),

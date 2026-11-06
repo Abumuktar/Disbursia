@@ -36,6 +36,9 @@ export interface Programme {
   description: string;
   defaultAccountId: string;
   enrolled: number;
+  /** Typical payment per beneficiary (kobo), used for sample files */
+  standardAmount?: number;
+  createdAt?: string;
 }
 
 export type VerifyStatus = 'pending' | 'matched' | 'review' | 'mismatch' | 'invalid' | 'duplicate';

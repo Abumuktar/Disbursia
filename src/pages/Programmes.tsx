@@ -1,115 +1,92 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, Fingerprint, KeyRound, Landmark, ScanFace, ShieldCheck, Users } from 'lucide-react';
+import { ArrowRight, Building2, Layers, Plus, Users } from 'lucide-react';
 import { useAppState } from '../lib/store';
 import { batchSummary } from '../lib/hooks';
-import { bankName } from '../lib/banks';
-import { dateOnly, naira, nairaShort, num } from '../lib/format';
-import { ActionError, resetSecurity } from '../lib/actions';
-import { useMe } from '../lib/hooks';
-import { Alert, Badge, BatchStatusBadge, Button, Card, CardHeader, Input, KV, Label, Modal, PageHeader } from '../components/ui';
+import { ActionError, createProgramme } from '../lib/actions';
+import { dateOnly, nairaShort, num } from '../lib/format';
+import { Alert, Button, Card, Empty, Input, Label, Modal, PageHeader, Textarea } from '../components/ui';
+import { toast } from '../components/toast';
 
 export default function Programmes() {
   const programmes = useAppState((s) => s.programmes);
   const batches = useAppState((s) => s.batches);
-  const account = useAppState((s) => s.accounts[0]);
-  const settings = useAppState((s) => s.settings);
+  const [adding, setAdding] = useState(false);
 
   const stats = useMemo(() => programmes.map((p) => {
     const pb = batches.filter((b) => b.programmeId === p.id && b.status !== 'cancelled');
-    const paid = pb.reduce((s, b) => s + batchSummary(b).paidAmount, 0);
-    const credited = pb.reduce((s, b) => s + batchSummary(b).success, 0);
-    return { p, paid, credited, last: pb[0] };
+    return { p, paid: pb.reduce((s, b) => s + batchSummary(b).paidAmount, 0), runs: pb.length, last: pb[0] };
   }), [programmes, batches]);
-  const debited = stats.reduce((s, x) => s + x.paid, 0);
 
   return (
     <>
-      <PageHeader eyebrow="Configuration" title="Account & security" subtitle="The source account, your sign-in security and the programmes Disbursia pays." />
+      <PageHeader title="Programmes"
+        actions={<Button icon={<Plus className="h-4 w-4" />} onClick={() => setAdding(true)}>Add programme</Button>} />
 
-      <Card className="mb-6 overflow-hidden">
-        <div className="relative bg-brand-900 px-6 py-6 text-white">
-          <div className="pattern-grid absolute inset-0 opacity-40" />
-          <div className="relative flex flex-wrap items-center gap-6">
-            <div className="rounded-xl bg-white/10 p-3"><Landmark className="h-7 w-7 text-gold-300" /></div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-gold-300">Sole source account</p>
-              <p className="text-2xl font-bold">{account.name}</p>
-              <p className="font-mono text-sm text-brand-200">{bankName(account.bankCode)} · NUBAN {account.accountNumber}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs uppercase tracking-wider text-brand-300">Available balance</p>
-              <p className="text-3xl font-bold tabular text-gold-300">{naira(account.balance)}</p>
-              <p className="text-xs text-brand-300">{nairaShort(debited)} disbursed through Disbursia</p>
-            </div>
-          </div>
-        </div>
-        <dl className="grid grid-cols-1 gap-6 px-6 py-5 sm:grid-cols-3">
-          <KV label="Authorization">PIN + fingerprint, administrator only</KV>
-          <KV label="Auto-accept name match at">{Math.round(settings.autoAcceptScore * 100)}% or higher</KV>
-          <KV label="Block name match below">{Math.round(settings.reviewScore * 100)}%</KV>
-        </dl>
-      </Card>
-
-      <SecurityCard />
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {stats.map(({ p, paid, credited, last }) => (
-          <Card key={p.id}>
-            <CardHeader title={<span className="flex items-center gap-2"><span className="rounded bg-gold-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-gold-800">{p.code}</span>{p.name}</span>}
-              subtitle={<span className="flex items-center gap-1"><Building2 className="h-3 w-3" />{p.agency}</span>} />
-            <div className="px-5 py-4">
-              <p className="text-sm text-slate-600">{p.description}</p>
-              <dl className="mt-4 grid grid-cols-3 gap-4">
-                <KV label="Enrolled"><span className="flex items-center gap-1"><Users className="h-3.5 w-3.5 text-slate-400" />{num(p.enrolled)}</span></KV>
-                <KV label="Paid to date">{nairaShort(paid)}</KV>
-                <KV label="Credits">{num(credited)}</KV>
+      {stats.length === 0 ? <Card><Empty icon={<Layers className="h-5 w-5" />} title="No programmes yet" /></Card> : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {stats.map(({ p, paid, runs, last }) => (
+            <Card key={p.id} className="flex flex-col p-5">
+              <div className="flex items-start justify-between gap-3">
+                <span className="rounded-lg bg-gold-50 px-2 py-1 font-mono text-xs font-bold text-gold-800 ring-1 ring-inset ring-gold-200">{p.code}</span>
+                {last && <span className="text-xs text-slate-400">Last run {dateOnly(last.createdAt)}</span>}
+              </div>
+              <h3 className="mt-3 text-base font-semibold text-slate-900">{p.name}</h3>
+              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500"><Building2 className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{p.agency}</span></p>
+              <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-slate-100 pt-4">
+                <Stat k="Enrolled" v={num(p.enrolled)} />
+                <Stat k="Paid" v={nairaShort(paid)} />
+                <Stat k="Runs" v={String(runs)} />
               </dl>
-              {last && (
-                <Link to={`/batches/${last.id}`} className="mt-4 flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-xs hover:bg-slate-100">
-                  <span className="text-slate-500">Latest: <span className="font-mono text-slate-700">{last.reference}</span> · {dateOnly(last.createdAt)}</span>
-                  <BatchStatusBadge status={last.status} />
-                </Link>
-              )}
-            </div>
-          </Card>
-        ))}
-      </div>
+              <Link to={`/disburse?programme=${p.id}`} className="mt-5 inline-flex items-center gap-1.5 self-start text-sm font-semibold text-brand-700 hover:text-brand-800">
+                New disbursement <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Card>
+          ))}
+          <button onClick={() => setAdding(true)} className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 text-slate-500 transition hover:border-brand-400 hover:bg-brand-50/40 hover:text-brand-700">
+            <span className="rounded-full bg-white p-3 shadow-sm ring-1 ring-slate-200"><Plus className="h-5 w-5" /></span>
+            <span className="mt-3 text-sm font-semibold">Add a programme</span>
+          </button>
+        </div>
+      )}
+      <AddProgramme open={adding} onClose={() => setAdding(false)} />
     </>
   );
 }
 
-function SecurityCard() {
-  const me = useMe();
-  const sec = me.security;
-  const [open, setOpen] = useState(false);
-  const [pin, setPin] = useState('');
+const Stat = ({ k, v }: { k: string; v: string }) => (
+  <div className="min-w-0"><dt className="text-[11px] uppercase tracking-wide text-slate-400">{k}</dt><dd className="mt-0.5 truncate text-sm font-semibold tabular text-slate-800">{v}</dd></div>
+);
+
+function AddProgramme({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const empty = { name: '', code: '', agency: '', description: '', enrolled: '', amount: '' };
+  const [f, setF] = useState(empty);
   const [error, setError] = useState('');
-  const factors = [
-    { icon: ScanFace, label: 'Face scan', on: !!sec?.face },
-    { icon: Fingerprint, label: 'Laptop fingerprint', on: !!sec?.passkey },
-    { icon: KeyRound, label: '6-digit PIN', on: true },
-  ];
+  const set = (k: keyof typeof empty) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
+  const close = () => { setF(empty); setError(''); onClose(); };
+  const save = () => {
+    try {
+      const p = createProgramme({
+        name: f.name, code: f.code, agency: f.agency, description: f.description,
+        enrolled: Number(f.enrolled.replace(/,/g, '')), standardAmount: Math.round(Number(f.amount.replace(/,/g, '')) * 100),
+      });
+      toast('success', 'Programme added', `${p.name} is ready for disbursements.`);
+      close();
+    } catch (e) { setError(e instanceof ActionError ? e.message : String(e)); }
+  };
   return (
-    <Card className="mb-6">
-      <CardHeader title="Sign-in security" subtitle={`${me.name} · sole administrator`}
-        action={<Button variant="secondary" size="sm" onClick={() => { setOpen(true); setPin(''); setError(''); }}>Re-enroll face & fingerprint</Button>} />
-      <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-3">
-        {factors.map((f) => (
-          <div key={f.label} className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
-            <span className="rounded-lg bg-brand-50 p-2 text-brand-700"><f.icon className="h-5 w-5" /></span>
-            <span className="flex-1 text-sm font-medium text-slate-800">{f.label}</span>
-            <Badge tone={f.on ? 'green' : 'yellow'}>{f.on ? 'Enrolled' : 'Not set'}</Badge>
-          </div>
-        ))}
+    <Modal open={open} onClose={close} title="Add programme" subtitle="New programmes pay from the same source account."
+      footer={<><Button variant="secondary" onClick={close}>Cancel</Button><Button onClick={save} icon={<Plus className="h-4 w-4" />}>Add programme</Button></>}>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_120px]">
+        <div><Label htmlFor="pg-name">Programme name</Label><Input id="pg-name" value={f.name} onChange={set('name')} placeholder="School Feeding Allowance" autoFocus /></div>
+        <div><Label htmlFor="pg-code">Code</Label><Input id="pg-code" value={f.code} onChange={(e) => setF({ ...f, code: e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6) })} placeholder="SFA" className="font-mono uppercase" /></div>
+        <div className="sm:col-span-2"><Label htmlFor="pg-agency">Ministry or agency</Label><Input id="pg-agency" value={f.agency} onChange={set('agency')} placeholder="Ministry of Education" /></div>
+        <div><Label htmlFor="pg-enrolled">Beneficiaries enrolled</Label><Input id="pg-enrolled" inputMode="numeric" value={f.enrolled} onChange={(e) => setF({ ...f, enrolled: e.target.value.replace(/[^\d,]/g, '') })} placeholder="3,000" /></div>
+        <div><Label htmlFor="pg-amount">Usual amount (₦)</Label><Input id="pg-amount" inputMode="decimal" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value.replace(/[^\d.,]/g, '') })} placeholder="20,000" /></div>
+        <div className="sm:col-span-2"><Label htmlFor="pg-desc" hint="(optional)">Description</Label><Textarea id="pg-desc" rows={2} value={f.description} onChange={set('description')} placeholder="Who is paid and how often" /></div>
       </div>
-      <p className="flex items-center gap-1.5 border-t border-slate-100 px-5 py-3 text-xs text-slate-500"><ShieldCheck className="h-3.5 w-3.5" />Face data and the fingerprint key stay on this device. The fingerprint itself never leaves the laptop's sensor.</p>
-      <Modal open={open} onClose={() => setOpen(false)} title="Re-enroll face and fingerprint" subtitle="You will be signed out and asked to enroll again."
-        footer={<><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button variant="danger" disabled={pin.length !== 6} onClick={() => { try { resetSecurity(pin); } catch (e) { setError(e instanceof ActionError ? e.message : String(e)); } }}>Reset and sign out</Button></>}>
-        <Label htmlFor="reset-pin">Confirm with your PIN</Label>
-        <Input id="reset-pin" type="password" inputMode="numeric" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} className="font-mono tracking-[0.5em]" placeholder="••••••" />
-        {error && <div className="mt-3"><Alert tone="red">{error}</Alert></div>}
-      </Modal>
-    </Card>
+      {error && <div className="mt-4"><Alert tone="red">{error}</Alert></div>}
+      <p className="mt-4 flex items-center gap-1.5 text-xs text-slate-500"><Users className="h-3.5 w-3.5" />The new programme is recorded in the audit trail.</p>
+    </Modal>
   );
 }

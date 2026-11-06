@@ -12,6 +12,7 @@ import Approvals from './pages/Approvals';
 import Receipt from './pages/Receipt';
 import AuditTrail from './pages/AuditTrail';
 import Programmes from './pages/Programmes';
+import Settings from './pages/Settings';
 
 export default function App() {
   const signedIn = useAppState((s) => s.sessionUserId);
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="batches/:id" element={<BatchDetail />} />
             <Route path="programmes" element={<Programmes />} />
             <Route path="audit" element={<AuditTrail />} />
+            <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

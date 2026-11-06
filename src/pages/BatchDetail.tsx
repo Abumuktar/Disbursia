@@ -1,15 +1,15 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, BadgeCheck, CheckCircle2, Download, FileText, Printer, RotateCcw, Search, Send, ShieldCheck, Trash2, XCircle } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, History, Download, FileText, Printer, RotateCcw, Search, Send, ShieldCheck, Trash2, XCircle } from 'lucide-react';
 import { useAppState } from '../lib/store';
 import { batchSummary, useLookups, useMe } from '../lib/hooks';
 import { ActionError, canSign, cancelBatch, logEvent, setItemsIncluded, submitBatch } from '../lib/actions';
 import { bankName, bankShort } from '../lib/banks';
-import { dateTime, duration, naira, num, pct, timeSecs } from '../lib/format';
+import { dateTime, duration, naira, num, pct } from '../lib/format';
 import { download, toCsv } from '../lib/parse';
 import type { BatchItem } from '../lib/types';
 import { AuthorizeModal, RejectModal } from '../components/AuthorizeModal';
-import { Alert, BatchStatusBadge, Button, Card, CardHeader, Empty, Input, KV, PageHeader, Pagination, PayBadge, Progress, VerifyBadge, cx } from '../components/ui';
+import { Alert, BatchStatusBadge, Button, Card, Empty, Input, KV, PageHeader, Pagination, PayBadge, Progress, VerifyBadge, cx } from '../components/ui';
 import { toast } from '../components/toast';
 import { Stepper } from './NewDisbursement';
 
@@ -19,7 +19,6 @@ const PAGE = 50;
 export default function BatchDetail() {
   const { id } = useParams();
   const batch = useAppState((s) => s.batches.find((b) => b.id === id));
-  const audit = useAppState((s) => s.audit);
   const me = useMe();
   const { programme, account, user } = useLookups();
   const [filter, setFilter] = useState<Filter>('all');
@@ -40,7 +39,6 @@ export default function BatchDetail() {
     });
   }, [batch, filter, q]);
 
-  const events = useMemo(() => audit.filter((e) => e.entityId === id).reverse(), [audit, id]);
 
   if (!batch) return <Empty icon={<FileText className="h-5 w-5" />} title="Batch not found"><Link to="/batches" className="text-brand-700 underline">Back to batches</Link></Empty>;
 
@@ -84,6 +82,7 @@ export default function BatchDetail() {
         title={<span className="flex flex-wrap items-center gap-3"><span className="font-mono">{batch.reference}</span><BatchStatusBadge status={batch.status} /></span>}
         subtitle={batch.narration}
         actions={<div className="no-print flex gap-2">
+          <Link to={`/audit?entity=${batch.id}`}><Button variant="secondary" size="sm" icon={<History className="h-4 w-4" />}>Activity</Button></Link>
           <Button variant="secondary" size="sm" icon={<Download className="h-4 w-4" />} onClick={exportCsv}>Export CSV</Button>
           <Button variant="secondary" size="sm" icon={<Printer className="h-4 w-4" />} onClick={() => { logEvent('REPORT_PRINTED', 'batch', batch.id, 'Printed batch report'); window.print(); }}>Print report</Button>
         </div>}
@@ -177,8 +176,16 @@ export default function BatchDetail() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <Card className="min-w-0">
+      <Card className="mb-6">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 px-5 py-4 lg:grid-cols-4">
+          <KV label="Source account">{acct.name}<span className="block font-mono text-xs font-normal text-slate-500">{bankShort(acct.bankCode)} · {acct.accountNumber}</span></KV>
+          <KV label="File">{batch.fileName}<span className="block text-xs font-normal text-slate-500">{num(c.total)} rows</span></KV>
+          <KV label="Prepared">{dateTime(batch.createdAt)}<span className="block text-xs font-normal text-slate-500">{creator?.name}</span></KV>
+          <KV label="Authorized">{batch.signatures[0] ? dateTime(batch.signatures[0].at) : 'Not yet'}<span className="block text-xs font-normal text-slate-500">{batch.signatures[0]?.name ?? 'PIN + fingerprint'}</span></KV>
+        </dl>
+      </Card>
+
+      <Card className="min-w-0">
           <div className="no-print flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3">
             <div className="flex min-w-0 flex-1 basis-full flex-wrap gap-1 lg:basis-auto">
               {tabs.map((t) => (
@@ -198,7 +205,7 @@ export default function BatchDetail() {
           </ul>
           <div className="hidden overflow-x-auto md:block">
             <table className="table-base">
-              <thead><tr><th>Row</th><th>Beneficiary</th><th>Account</th><th>Name at bank</th><th className="text-right">Amount</th><th>Verification</th><th>Payment</th><th className="no-print" /></tr></thead>
+              <thead><tr><th>Beneficiary</th><th>Account</th><th>Name at bank</th><th className="text-right">Amount</th><th>Verification</th><th>Payment</th><th className="no-print" /></tr></thead>
               <tbody>
                 {pageRows.map((it) => <ItemRow key={it.id} it={it} batchId={batch.id} editable={isDraftOwner} />)}
               </tbody>
@@ -207,53 +214,6 @@ export default function BatchDetail() {
           {pageRows.length === 0 && <Empty icon={<Search className="h-5 w-5" />} title="No rows match this view" />}
           <Pagination page={page} pages={pages} total={rows.length} pageSize={PAGE} onPage={setPage} />
         </Card>
-
-        <div className="space-y-6">
-          <Card>
-            <CardHeader title="Batch details" />
-            <dl className="grid grid-cols-1 gap-4 p-5">
-              <KV label="Source account">{acct.name}<span className="block font-mono text-xs font-normal text-slate-500">{bankShort(acct.bankCode)} · {acct.accountNumber}</span></KV>
-              <KV label="Uploaded file">{batch.fileName}</KV>
-              <KV label="Prepared by">{creator?.name}<span className="block text-xs font-normal text-slate-500">{dateTime(batch.createdAt)}</span></KV>
-              <KV label="Submitted">{dateTime(batch.submittedAt)}</KV>
-            </dl>
-          </Card>
-          <Card>
-            <CardHeader title="Authorization" subtitle={batch.signatures.length ? "Signed" : "Not yet authorized"} />
-            <ul className="space-y-3 p-5">
-              {Array.from({ length: batch.requiredSignatures }).map((_, i) => {
-                const s = batch.signatures[i];
-                return (
-                  <li key={i} className="flex items-center gap-3">
-                    <div className={cx('flex h-8 w-8 items-center justify-center rounded-full', s ? 'bg-brand-100 text-brand-700' : 'bg-slate-100 text-slate-400')}>
-                      {s ? <CheckCircle2 className="h-4 w-4" /> : <span className="text-xs font-bold">{i + 1}</span>}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-800">{s ? s.name : 'Awaiting signature'}</p>
-                      <p className="truncate text-xs text-slate-500">{s ? `${s.title} · ${dateTime(s.at)}` : 'PIN + fingerprint'}</p>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </Card>
-          <Card className="no-print">
-            <CardHeader title="Activity" subtitle="From the audit trail" action={<Link to={`/audit?entity=${batch.id}`} className="text-xs font-semibold text-brand-700 hover:underline">Full log</Link>} />
-            <ol className="relative space-y-4 p-5">
-              {events.slice(0, 12).map((e) => (
-                <li key={e.seq} className="flex gap-3">
-                  <span className={cx('mt-1.5 h-2 w-2 shrink-0 rounded-full', /FAILED|REJECT/.test(e.action) ? 'bg-danger-500' : /SIGNED|COMPLETED|VERIFIED/.test(e.action) ? 'bg-brand-500' : 'bg-gold-400')} />
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-slate-800">{e.action.replace(/_/g, ' ').toLowerCase().replace(/^./, (m) => m.toUpperCase())}</p>
-                    <p className="text-xs text-slate-500">{e.summary}</p>
-                    <p className="mt-0.5 text-[11px] text-slate-400">{e.actorName} · {dateTime(e.at)}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </Card>
-        </div>
-      </div>
 
       {authOpen && <AuthorizeModal batch={batch} open={!!authOpen} mode={authOpen} onClose={() => setAuthOpen(false)} />}
       <RejectModal batch={batch} open={rejectOpen} onClose={() => setRejectOpen(false)} />
@@ -268,10 +228,9 @@ function ItemRow({ it, batchId, editable }: { it: BatchItem; batchId: string; ed
   };
   return (
     <tr className={cx(!it.include && it.verify !== 'pending' && 'bg-slate-50/40')}>
-      <td className="text-xs text-slate-400">{it.row}</td>
       <td>
         <p className="font-medium text-slate-800">{it.submittedName}</p>
-        {it.beneficiaryId && <p className="font-mono text-[11px] text-slate-400">{it.beneficiaryId}</p>}
+        <p className="font-mono text-[11px] text-slate-400">{it.beneficiaryId ?? `Row ${it.row}`}</p>
       </td>
       <td>
         <p className="font-mono text-[13px]">{it.accountNumber}</p>
@@ -290,14 +249,13 @@ function ItemRow({ it, batchId, editable }: { it: BatchItem; batchId: string; ed
       <td>
         <PayBadge status={it.pay} />
         {it.failureReason && <p className="mt-0.5 text-[11px] text-danger-600">{it.failureReason}</p>}
-        {it.pay === 'success' && <p className="mt-0.5 text-[11px] text-slate-400">{timeSecs(it.paidAt)}</p>}
       </td>
       <td className="no-print text-right">
         {decidable && (
           <Button size="sm" variant={it.include ? 'secondary' : 'gold'} onClick={toggle}>{it.include ? 'Exclude' : 'Accept'}</Button>
         )}
         {it.pay === 'success' && (
-          <Link to={`/receipt/${batchId}/${it.id}`} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50"><FileText className="h-3.5 w-3.5" /> Receipt</Link>
+          <Link to={`/receipt/${batchId}/${it.id}`} title={`Receipt ${it.reference ?? ''}`} aria-label="Receipt" className="inline-flex rounded-md p-1.5 text-brand-700 hover:bg-brand-50"><FileText className="h-4 w-4" /></Link>
         )}
       </td>
     </tr>

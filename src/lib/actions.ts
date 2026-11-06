@@ -1,4 +1,4 @@
-import type { Batch, BatchItem, Role, SecurityProfile, User } from './types';
+import type { Batch, BatchItem, Programme, Role, SecurityProfile, User } from './types';
 import { appendAudit, getState, setState } from './store';
 import { sha256 } from './sha256';
 import { batchReference, summarize, verifyItems } from './seed';
@@ -354,4 +354,25 @@ export function resumeInFlight() {
     if (b.status === 'verifying') void runVerification(b.id);
     if (b.status === 'processing') void runPayout(b.id, !!b.completedAt);
   }
+}
+
+export function createProgramme(input: { code: string; name: string; agency: string; description: string; enrolled: number; standardAmount: number }): Programme {
+  const u = requireUser('officer');
+  const s = getState();
+  const code = input.code.trim().toUpperCase();
+  if (!/^[A-Z]{2,6}$/.test(code)) throw new ActionError('Code must be 2 to 6 letters, for example SCHL.');
+  if (s.programmes.some((p) => p.code === code)) throw new ActionError(`A programme with code ${code} already exists.`);
+  if (input.name.trim().length < 3) throw new ActionError('Enter the programme name.');
+  if (input.agency.trim().length < 3) throw new ActionError('Enter the implementing ministry or agency.');
+  if (!(input.enrolled > 0)) throw new ActionError('Enter the number of enrolled beneficiaries.');
+  if (!(input.standardAmount > 0)) throw new ActionError('Enter the usual amount paid to each beneficiary.');
+  const p: Programme = {
+    id: `p-${code.toLowerCase()}-${Date.now().toString(36)}`, code, name: input.name.trim(), agency: input.agency.trim(),
+    description: input.description.trim(), defaultAccountId: s.accounts[0].id, enrolled: Math.round(input.enrolled),
+    standardAmount: Math.round(input.standardAmount), createdAt: new Date().toISOString(),
+  };
+  setState((st) => ({ ...st, programmes: [...st.programmes, p] }));
+  appendAudit(actor(u), 'PROGRAMME_CREATED', 'programme', p.id, `Added programme ${p.name} (${p.code}) for ${p.agency}`, null,
+    { code: p.code, name: p.name, enrolled: p.enrolled, standardAmount: p.standardAmount });
+  return p;
 }

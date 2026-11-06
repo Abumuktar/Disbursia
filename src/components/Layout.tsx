@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { BookCheck, FileStack, Landmark, LayoutDashboard, LogOut, Menu, Send, ShieldCheck, X } from 'lucide-react';
+import { BookCheck, FileStack, Layers, LayoutDashboard, LogOut, Menu, Send, Settings, ShieldCheck, X } from 'lucide-react';
 import { useAppState } from '../lib/store';
 import { logout } from '../lib/actions';
 import { naira } from '../lib/format';
@@ -15,8 +15,9 @@ const NAV: { to: string; label: string; icon: typeof LayoutDashboard; roles?: Ro
   { to: '/disburse', label: 'New disbursement', icon: Send, roles: ['officer'] },
   { to: '/approvals', label: 'Approvals', icon: BookCheck, roles: ['signatory'] },
   { to: '/batches', label: 'Batches & receipts', icon: FileStack },
-  { to: '/programmes', label: 'Account & security', icon: Landmark },
+  { to: '/programmes', label: 'Programmes', icon: Layers },
   { to: '/audit', label: 'Audit trail', icon: ShieldCheck },
+  { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export const ROLE_LABEL: Record<Role, string> = { admin: 'Administrator', officer: 'Finance Officer', signatory: 'Signatory', auditor: 'Auditor (read-only)' };

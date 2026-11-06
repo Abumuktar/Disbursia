@@ -16,7 +16,7 @@ export const timeSecs = (iso?: string) =>
   iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
 
 export function duration(ms: number) {
-  if (ms < 1000) return `${ms} ms`;
+  if (ms < 1000) return 'under 1s';
   const s = Math.round(ms / 1000);
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
