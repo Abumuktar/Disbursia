@@ -1,4 +1,12 @@
-export type Role = 'officer' | 'signatory' | 'auditor';
+export type Role = 'admin' | 'officer' | 'signatory' | 'auditor';
+
+export interface SecurityProfile {
+  /** 128-number face descriptor captured at enrollment */
+  face?: number[];
+  /** WebAuthn platform credential (laptop fingerprint) */
+  passkey?: { id: string; publicKey: string; alg: number };
+  enrolledAt: string;
+}
 
 export interface User {
   id: string;
@@ -8,6 +16,7 @@ export interface User {
   phone: string;
   email: string;
   pinHash: string;
+  security?: SecurityProfile;
 }
 
 export interface TreasuryAccount {

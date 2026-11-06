@@ -50,3 +50,14 @@
 .animate-marquee { animation: marquee 38s linear infinite; }
 .animate-marquee:hover { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) { .animate-marquee { animation: none; } }
+@keyframes shake { 10%,90% { transform: translateX(-1px) } 20%,80% { transform: translateX(3px) } 30%,50%,70% { transform: translateX(-6px) } 40%,60% { transform: translateX(6px) } }
+.animate-shake { animation: shake .45s cubic-bezier(.36,.07,.19,.97) both; }
+@keyframes spin-slow { to { transform: rotate(360deg) } }
+.animate-spin-slow { animation: spin-slow 2.4s linear infinite; }
+@keyframes ripple { 0% { transform: scale(.85); opacity: .55 } 100% { transform: scale(1.6); opacity: 0 } }
+.animate-ripple { animation: ripple 1.8s ease-out infinite; }
+@keyframes pop { 0% { transform: scale(.6); opacity: 0 } 60% { transform: scale(1.08); opacity: 1 } 100% { transform: scale(1) } }
+.animate-pop { animation: pop .45s ease-out both; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+.animate-fade-in { animation: fade-in .4s ease-out both; }
+@keyframes scan { 0% { top: -33% } 50% { top: 100% } 100% { top: -33% } }

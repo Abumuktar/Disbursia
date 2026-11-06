@@ -4,7 +4,7 @@ import './index.css';
 import App from './App';
 import { initStore } from './lib/store';
 import { seedState } from './lib/seed';
-import { resumeInFlight } from './lib/actions';
+import { restoreSession, resumeInFlight } from './lib/actions';
 
 const root = ReactDOM.createRoot(document.getElementById('root')!);
 root.render(
@@ -12,6 +12,7 @@ root.render(
 );
 
 initStore(seedState).then(() => {
+  restoreSession();
   resumeInFlight();
   root.render(<React.StrictMode><App /></React.StrictMode>);
 });

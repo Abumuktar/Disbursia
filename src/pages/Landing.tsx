@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ArrowRight, ArrowUpRight, BadgeCheck, CheckCircle2, ChevronDown, ClipboardList, Eye, FileCheck2, Fingerprint, Gavel, GraduationCap,
+  ArrowRight, ArrowUpRight, BadgeCheck, Check, CheckCircle2, ChevronDown, Eye, FileCheck2, Fingerprint, Gavel, GraduationCap,
   HandCoins, HeartPulse, KeyRound, Landmark, Lock, Menu, Network, Printer, ScrollText, ShieldCheck, Sprout, Timer, UploadCloud,
   UserCheck, Users, X, XCircle, Zap,
 } from 'lucide-react';
@@ -107,7 +107,7 @@ export default function Landing() {
             ))}
           </nav>
           <Link to="/login" className="ml-auto hidden items-center gap-2 rounded-full bg-brand-800 px-6 py-3 text-[15px] font-semibold text-white shadow-sm transition hover:bg-brand-900 sm:inline-flex lg:ml-0">
-            Staff portal <ArrowUpRight className="h-4 w-4" />
+            Admin sign in <ArrowUpRight className="h-4 w-4" />
           </Link>
           <button onClick={() => setMenu(true)} className="ml-auto rounded-lg p-2 text-slate-700 sm:ml-0 lg:hidden" aria-label="Open menu"><Menu className="h-6 w-6" /></button>
         </div>
@@ -120,7 +120,7 @@ export default function Landing() {
           </div>
           <nav className="mt-10 flex flex-col gap-1">
             {NAV.map(([h, l]) => <a key={h} href={h} onClick={(e) => go(e, h)} className="rounded-xl px-4 py-3.5 text-lg font-semibold text-slate-800 hover:bg-brand-50">{l}</a>)}
-            <Link to="/login" className="mt-6 inline-flex items-center justify-center gap-2 rounded-full bg-brand-800 px-6 py-4 font-semibold text-white"><Lock className="h-4 w-4" /> Staff portal</Link>
+            <Link to="/login" className="mt-6 inline-flex items-center justify-center gap-2 rounded-full bg-brand-800 px-6 py-4 font-semibold text-white"><Lock className="h-4 w-4" /> Admin sign in</Link>
           </nav>
         </div>
       )}
@@ -162,13 +162,13 @@ export default function Landing() {
           <Reveal delay={200}>
             <p className="mx-auto mt-8 max-w-3xl text-lg leading-relaxed text-slate-600 sm:text-xl">
               Disbursia is how the Katsina State Government pays pensioners, YEAP youths, farmers and health workers.
-              Thousands at once, every name verified with the bank, every batch signed with PIN and OTP, and a receipt for every credit.
+              Thousands at once, every name verified with the bank, every batch authorized with PIN and fingerprint, and a receipt for every credit.
             </p>
           </Reveal>
           <Reveal delay={300}>
             <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
               <Link to="/login" className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-800 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-brand-900/20 transition hover:bg-brand-900 sm:w-auto">
-                Open the staff portal <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                Admin sign in <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
               <a href="#journey" onClick={(e) => go(e, '#journey')} className="inline-flex w-full items-center justify-center rounded-xl bg-white px-8 py-4 text-base font-semibold text-brand-800 shadow-sm ring-1 ring-slate-200 transition hover:ring-brand-300 sm:w-auto">
                 See how it works
@@ -178,7 +178,7 @@ export default function Landing() {
           <Reveal delay={400}>
             <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm font-medium text-slate-600">
               <span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-brand-600" />NIBSS name enquiry</span>
-              <span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-brand-600" />Dual signatories above ₦50m</span>
+              <span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-brand-600" />Face, fingerprint and PIN sign-in</span>
               <span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-brand-600" />Tamper-evident audit</span>
             </div>
           </Reveal>
@@ -303,10 +303,10 @@ export default function Landing() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionEyebrow>Who it serves</SectionEyebrow>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-[42px] sm:leading-tight">Clear roles, clear accountability</h2>
-            <p className="mt-4 text-lg text-slate-600">Everyone sees exactly what their role needs, and no one person can move money alone.</p>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-[42px] sm:leading-tight">Clear accountability</h2>
+            <p className="mt-4 text-lg text-slate-600">One accountable administrator, full transparency for auditors, and on-time payment for citizens.</p>
           </Reveal>
-          <div className="mt-14 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-14 grid grid-cols-1 gap-5 md:grid-cols-3">
             {ROLES.map((r, i) => (
               <Reveal key={r.t} delay={i * 100}>
                 <div className="group relative h-full overflow-hidden rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200 transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-brand-900/5">
@@ -390,8 +390,8 @@ export default function Landing() {
           <Reveal>
             <SectionEyebrow>Questions</SectionEyebrow>
             <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-[42px] sm:leading-tight">Frequently asked</h2>
-            <p className="mt-4 text-lg text-slate-600">How Disbursia protects public funds, and what changes for officers, signatories and beneficiaries.</p>
-            <Link to="/login" className="mt-8 inline-flex items-center gap-2 font-semibold text-brand-700 hover:text-brand-800">Staff portal <ArrowRight className="h-4 w-4" /></Link>
+            <p className="mt-4 text-lg text-slate-600">How Disbursia protects public funds, and what it means for beneficiaries.</p>
+            <Link to="/login" className="mt-8 inline-flex items-center gap-2 font-semibold text-brand-700 hover:text-brand-800">Admin sign in <ArrowRight className="h-4 w-4" /></Link>
           </Reveal>
           <Reveal delay={120}><Faq /></Reveal>
         </div>
@@ -408,7 +408,7 @@ export default function Landing() {
             <p className="mx-auto mt-5 max-w-xl text-lg text-brand-100">A working system is ready for live demonstration to the Office of the Accountant-General.</p>
             <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link to="/login" className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gold-400 px-8 py-4 font-semibold text-brand-950 shadow-lg transition hover:bg-gold-300 sm:w-auto">
-                Open the staff portal <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                Admin sign in <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
               <a href="#faq" onClick={(e) => go(e, '#faq')} className="inline-flex w-full items-center justify-center rounded-xl px-8 py-4 font-semibold text-white ring-1 ring-white/30 transition hover:bg-white/10 sm:w-auto">Read the FAQ</a>
             </div>
@@ -436,8 +436,8 @@ export default function Landing() {
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Access</p>
             <ul className="mt-4 space-y-2.5 text-sm text-slate-600">
-              <li><Link to="/login" className="hover:text-brand-700">Staff portal</Link></li>
-              <li>Finance officers · Signatories · Auditors</li>
+              <li><Link to="/login" className="hover:text-brand-700">Admin sign in</Link></li>
+              <li>Administrator access only</li>
             </ul>
           </div>
         </div>
@@ -471,9 +471,9 @@ function SectionEyebrow({ children, light }: { children: ReactNode; light?: bool
 }
 
 const JOURNEY = [
-  { icon: UploadCloud, t: 'Upload', d: 'A finance officer chooses the programme and uploads the beneficiary spreadsheet. Account numbers are checked as the file is read.' },
+  { icon: UploadCloud, t: 'Upload', d: 'The administrator chooses the programme and uploads the beneficiary spreadsheet. Account numbers are checked as the file is read.' },
   { icon: Fingerprint, t: 'Verify', d: 'Every name is resolved against the bank record through NIBSS. Mismatches, invalid accounts and duplicates are held back automatically.' },
-  { icon: KeyRound, t: 'Authorize', d: 'A signatory approves the whole batch with one PIN and one OTP. Above ₦50 million, a second signatory must sign as well.' },
+  { icon: KeyRound, t: 'Authorize', d: 'The administrator releases the whole batch with a PIN and a fingerprint touch on their own device.' },
   { icon: Printer, t: 'Receipt', d: 'Funds move by NIP within minutes. Each beneficiary gets a crested receipt that can be printed, shared or filed.' },
 ];
 
@@ -494,18 +494,18 @@ const SAFEGUARDS = [
   },
   {
     icon: KeyRound, t: 'One authorized run', tint: 'bg-gold-50 text-gold-600',
-    d: 'Thousands of payments move on one PIN and one OTP. Batches above ₦50 million need a second signatory, and nobody can authorize a batch they prepared.',
+    d: 'Thousands of payments move on one PIN and one fingerprint. Signing in itself needs a face scan, fingerprint and PIN, so only the administrator can release funds.',
     visual: (
       <div className="rounded-2xl bg-brand-900 p-5 text-white shadow-xl">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-gold-300">Authorize ₦12,000,000.00</p>
-        <div className="mt-4 flex gap-2">{[0, 1, 2, 3].map((i) => <span key={i} className="flex h-10 flex-1 items-center justify-center rounded-lg bg-white/10 text-lg">•</span>)}</div>
-        <div className="mt-3 flex gap-1.5">{'482913'.split('').map((d, i) => <span key={i} className="flex h-10 flex-1 items-center justify-center rounded-lg bg-white font-mono font-bold text-brand-900">{d}</span>)}</div>
+        <div className="mt-4 flex gap-1.5">{[0, 1, 2, 3, 4, 5].map((i) => <span key={i} className="flex h-10 flex-1 items-center justify-center rounded-lg bg-white/10 text-lg">•</span>)}</div>
+        <div className="mt-3 flex items-center gap-3 rounded-lg bg-white px-3 py-2.5 text-brand-900"><Fingerprint className="h-6 w-6" /><span className="text-sm font-semibold">Fingerprint confirmed</span><Check className="ml-auto h-5 w-5 text-brand-600" /></div>
       </div>
     ),
   },
   {
     icon: FileCheck2, t: 'A receipt per transaction', tint: 'bg-gold-50 text-gold-600',
-    d: 'Every payment produces a printable receipt with the state crest, transaction reference, NIP session ID, sender, beneficiary and the signatories named in full.',
+    d: 'Every payment produces a printable receipt with the state crest, transaction reference, NIP session ID, sender, beneficiary and the authorizing officer named in full.',
     visual: (
       <div className="overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-slate-200">
         <div className="flex items-center gap-3 bg-brand-700 px-4 py-3 text-white"><Crest className="h-8 w-8 rounded-full bg-white p-0.5" /><span className="text-xs font-semibold">Payment receipt</span></div>
@@ -585,7 +585,7 @@ function HeroMock() {
             <p className="text-[11px] text-brand-300">Ready to authorize</p>
             <p className="text-lg font-bold tabular">₦97,412,850.00</p>
           </div>
-          <span className={cx('inline-flex items-center gap-1.5 rounded-lg bg-gold-400 px-3 py-2 text-xs font-bold text-brand-950', done && 'animate-pulse-ring')}><KeyRound className="h-3.5 w-3.5" />PIN + OTP</span>
+          <span className={cx('inline-flex items-center gap-1.5 rounded-lg bg-gold-400 px-3 py-2 text-xs font-bold text-brand-950', done && 'animate-pulse-ring')}><Fingerprint className="h-3.5 w-3.5" />Fingerprint + PIN</span>
         </div>
       </div>
       <div className="absolute -bottom-6 -left-6 hidden rounded-xl bg-white px-4 py-3 shadow-xl ring-1 ring-black/5 sm:block" style={{ animation: 'float 7s ease-in-out infinite', animationDelay: '-2s' }}>
@@ -604,22 +604,21 @@ const RAILS = [
   { icon: UserCheck, label: 'NIBSS Name Enquiry' },
   { icon: BadgeCheck, label: 'CBN NUBAN standard' },
   { icon: Landmark, label: 'Sterling Bank' },
-  { icon: KeyRound, label: 'PIN + SMS OTP' },
+  { icon: KeyRound, label: 'Face · fingerprint · PIN' },
   { icon: ScrollText, label: 'SHA-256 audit chain' },
   { icon: Gavel, label: 'Office of the Auditor-General' },
 ];
 
 const ROLES = [
-  { icon: ClipboardList, t: 'Finance officers', d: 'Prepare a batch from one spreadsheet, see every name check, and decide on partial matches before submitting.', bar: 'bg-brand-500', tint: 'bg-brand-50 text-brand-600' },
-  { icon: KeyRound, t: 'Signatories', d: 'Review the totals and authorize the whole batch with one PIN and one OTP. Two signatories are needed above ₦50 million.', bar: 'bg-gold-400', tint: 'bg-gold-50 text-gold-600' },
+  { icon: KeyRound, t: 'The administrator', d: 'Prepares, verifies and authorizes every batch from one secure desk, signing in with face, fingerprint and PIN.', bar: 'bg-gold-400', tint: 'bg-gold-50 text-gold-600' },
   { icon: Eye, t: 'Auditors & investigators', d: 'Trace any payment end to end without requesting a special report, and verify that the record has not been altered.', bar: 'bg-danger-500', tint: 'bg-danger-50 text-danger-600' },
   { icon: HandCoins, t: 'Beneficiaries', d: 'Pensioners, youths, farmers and health workers get paid on time, to the right account, with a receipt to show for it.', bar: 'bg-brand-500', tint: 'bg-brand-50 text-brand-600' },
 ];
 
 const FAQS = [
   { q: 'How does Disbursia stop money going to the wrong person?', a: 'Before anything is paid, every account number is validated and the account name is fetched from the bank through NIBSS. Names that do not match are blocked, near matches need an officer decision, and duplicate accounts in the same file are held back.' },
-  { q: 'Who can authorize a payment?', a: 'Only designated signatories, using their PIN and a one-time password sent to their phone. Batches above ₦50 million need two different signatories, and the officer who prepared a batch can never authorize it.' },
-  { q: 'What happens if a payment fails?', a: 'Failed transfers are not debited. They are listed with the bank\'s reason, and a signatory can re-run them with a fresh PIN and OTP once the destination bank is available.' },
+  { q: 'Who can authorize a payment?', a: 'Only the administrator. Signing in needs a face scan, a fingerprint on the administrator\'s laptop and a PIN, and every batch is released with the PIN and fingerprint again.' },
+  { q: 'What happens if a payment fails?', a: 'Failed transfers are not debited. They are listed with the bank\'s reason, and the administrator can re-run them with PIN and fingerprint once the destination bank is available.' },
   { q: 'Can the records be changed after the fact?', a: 'No. Every action is written to an audit log where each entry is chained to the one before it with a SHA-256 hash. Changing any past entry breaks the chain, and the integrity check shows exactly where.' },
   { q: 'What file formats can be uploaded?', a: 'Excel (.xlsx) and CSV. Disbursia recognises common column names such as account number, bank code or bank name, account name and amount, and a template is available to download.' },
   { q: 'Which programmes are covered?', a: 'The pilot covers monthly pensions, YEAP stipends and a fertilizer subsidy round, alongside PHC worker allowances. After a successful pilot, rollout extends to every MDA that pays citizens and to the 34 LGAs.' },
@@ -663,7 +662,7 @@ function AboutVisual() {
             <p className="mt-1 text-2xl font-bold tabular sm:text-3xl">₦12,000,000.00</p>
             <p className="text-sm text-brand-200">400 YEAP beneficiaries</p>
           </div>
-          <span className="rounded-full bg-gold-400 px-3 py-1 text-xs font-bold text-brand-950">PIN + OTP</span>
+          <span className="rounded-full bg-gold-400 px-3 py-1 text-xs font-bold text-brand-950">Fingerprint + PIN</span>
         </div>
         <div className="relative mt-6 grid grid-cols-3 gap-3 text-center">
           {[['396', 'Matched', 'text-brand-300'], ['3', 'Partial', 'text-gold-300'], ['1', 'Blocked', 'text-danger-300']].map(([n, l, c]) => (

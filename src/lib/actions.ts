@@ -1,10 +1,10 @@
-import type { Batch, BatchItem, Role, User } from './types';
+import type { Batch, BatchItem, Role, SecurityProfile, User } from './types';
 import { appendAudit, getState, setState } from './store';
 import { sha256 } from './sha256';
 import { batchReference, summarize, verifyItems } from './seed';
 import { nipTransfer } from './nibss';
 import type { ParsedRow } from './parse';
-import { maskPhone, naira } from './format';
+import { naira } from './format';
 
 export class ActionError extends Error {}
 
@@ -18,7 +18,7 @@ export function currentUser(): User | null {
 function requireUser(...roles: Role[]): User {
   const u = currentUser();
   if (!u) throw new ActionError('You are not signed in.');
-  if (roles.length && !roles.includes(u.role)) throw new ActionError('Your role is not permitted to perform this action.');
+  if (roles.length && u.role !== 'admin' && !roles.includes(u.role)) throw new ActionError('Your role is not permitted to perform this action.');
   return u;
 }
 
@@ -36,20 +36,71 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // ---- Session ---------------------------------------------------------------
 
-export function login(userId: string, pin: string) {
-  const u = getState().users.find((x) => x.id === userId);
-  if (!u) throw new ActionError('Unknown user.');
+const SESSION_KEY = 'disbursia-session';
+let pinFailures = 0;
+let lockedUntil = 0;
+
+export const admin = () => getState().users[0];
+
+/** Record a sign-in factor result (face, fingerprint) in the audit trail. */
+export function recordFactor(factor: 'face' | 'fingerprint', ok: boolean, detail = '') {
+  const u = admin();
+  const label = factor === 'face' ? 'Face' : 'Fingerprint';
+  appendAudit(actor(u), ok ? `SIGNIN_${factor.toUpperCase()}_VERIFIED` : `SIGNIN_${factor.toUpperCase()}_FAILED`, 'session', u.id,
+    ok ? `${label} verified${detail ? ` (${detail})` : ''}` : `${label} check failed${detail ? `: ${detail}` : ''}`);
+}
+
+/** Checks the administrator PIN with attempt limits; every failure is audited. */
+export function checkAdminPin(pin: string) {
+  const u = admin();
+  if (Date.now() < lockedUntil) throw new ActionError(`Too many attempts. Try again in ${Math.ceil((lockedUntil - Date.now()) / 1000)} seconds.`);
   if (!pinOk(u, pin)) {
-    appendAudit(actor(u), 'LOGIN_FAILED', 'session', u.id, 'Sign-in rejected: incorrect PIN');
+    pinFailures++;
+    appendAudit(actor(u), 'LOGIN_FAILED', 'session', u.id, `Sign-in rejected: incorrect PIN (attempt ${pinFailures})`);
+    if (pinFailures >= 5) { lockedUntil = Date.now() + 60000; pinFailures = 0; throw new ActionError('Too many incorrect PINs. Sign-in is locked for 60 seconds.'); }
     throw new ActionError('Incorrect PIN. The attempt has been logged.');
   }
+  pinFailures = 0;
+}
+
+export function openSession(factors: string[]) {
+  const u = admin();
   setState((s) => ({ ...s, sessionUserId: u.id }));
-  appendAudit(actor(u), 'LOGIN', 'session', u.id, `Signed in as ${u.title}`);
+  try { sessionStorage.setItem(SESSION_KEY, u.id); } catch { /* ignore */ }
+  appendAudit(actor(u), 'LOGIN', 'session', u.id, `Signed in with ${factors.join(' + ')}`);
+}
+
+/** Restore a session for this browser tab only; closing the tab requires a full sign-in again. */
+export function restoreSession() {
+  let id: string | null = null;
+  try { id = sessionStorage.getItem(SESSION_KEY); } catch { /* ignore */ }
+  setState((s) => ({ ...s, sessionUserId: s.users.some((u) => u.id === id) ? id : null }));
+}
+
+export function enrollSecurity(profile: Omit<SecurityProfile, 'enrolledAt'>) {
+  const u = admin();
+  const security: SecurityProfile = { ...profile, enrolledAt: new Date().toISOString() };
+  setState((s) => ({ ...s, users: s.users.map((x) => (x.id === u.id ? { ...x, security } : x)) }));
+  appendAudit(actor(u), 'SECURITY_ENROLLED', 'session', u.id,
+    `Sign-in factors enrolled: ${[profile.face && 'face', profile.passkey && 'fingerprint', 'PIN'].filter(Boolean).join(', ')}`,
+    null, { face: !!profile.face, fingerprint: !!profile.passkey });
+}
+
+export function resetSecurity(pin: string) {
+  const u = requireUser();
+  if (!pinOk(u, pin)) {
+    appendAudit(actor(u), 'AUTH_FAILED', 'session', u.id, 'Biometric reset rejected: incorrect PIN');
+    throw new ActionError('Incorrect PIN. The attempt has been logged.');
+  }
+  setState((s) => ({ ...s, users: s.users.map((x) => (x.id === u.id ? { ...x, security: undefined } : x)) }));
+  appendAudit(actor(u), 'SECURITY_RESET', 'session', u.id, 'Face and fingerprint enrollment cleared; re-enrollment required at next sign-in');
+  logout();
 }
 
 export function logout() {
   const u = currentUser();
   if (u) appendAudit(actor(u), 'LOGOUT', 'session', u.id, 'Signed out');
+  try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
   setState((s) => ({ ...s, sessionUserId: null }));
 }
 
@@ -131,10 +182,10 @@ export function submitBatch(batchId: string) {
   if (!c.included) throw new ActionError('No payments are included in this batch.');
   const acct = s.accounts.find((a) => a.id === b.accountId)!;
   if (acct.balance < c.includedAmount) throw new ActionError(`Insufficient balance in ${acct.name}: ${naira(acct.balance)} available, ${naira(c.includedAmount)} required.`);
-  const required = c.includedAmount > s.settings.secondSignatoryThreshold ? 2 : 1;
+  const required = 1;
   patchBatch(batchId, (bb) => ({ ...bb, status: 'pending_authorization', submittedAt: new Date().toISOString(), requiredSignatures: required }));
   appendAudit(actor(u), 'BATCH_SUBMITTED', 'batch', batchId,
-    `Submitted ${c.included} payments totalling ${naira(c.includedAmount)} for authorization (${required} signator${required > 1 ? 'ies' : 'y'} required)`,
+    `Submitted ${c.included} payments totalling ${naira(c.includedAmount)} for authorization`,
     { status: 'verified' }, { status: 'pending_authorization', total: c.includedAmount, included: c.included, requiredSignatures: required });
 }
 
@@ -150,47 +201,53 @@ export function cancelBatch(batchId: string) {
 
 const otps = new Map<string, { code: string; expires: number; batchId: string; purpose: string }>();
 
-export function requestOtp(batchId: string, purpose: 'authorize' | 'retry'): { phone: string; code: string } {
+/** Fallback second factor when no fingerprint is enrolled on this device. */
+export function requestOtp(batchId: string, purpose: 'authorize' | 'retry'): { code: string } {
   const u = requireUser('signatory');
   const b = getBatch(batchId);
   const code = String(Math.floor(100000 + Math.random() * 900000));
   otps.set(u.id, { code, expires: Date.now() + 5 * 60000, batchId, purpose });
-  appendAudit(actor(u), 'OTP_ISSUED', 'batch', batchId, `One-time password sent to ${maskPhone(u.phone)} to ${purpose === 'retry' ? 're-run failed payments on' : 'authorize'} ${b.reference}`);
-  return { phone: maskPhone(u.phone), code };
+  appendAudit(actor(u), 'OTP_ISSUED', 'batch', batchId, `One-time password issued to ${purpose === 'retry' ? 're-run failed payments on' : 'authorize'} ${b.reference}`);
+  return { code };
 }
 
-function checkCredentials(u: User, batchId: string, pin: string, otp: string, purpose: string) {
+export type SecondFactor = { kind: 'fingerprint' } | { kind: 'otp'; code: string };
+
+function checkCredentials(u: User, batchId: string, pin: string, second: SecondFactor, purpose: string) {
   if (!pinOk(u, pin)) {
     appendAudit(actor(u), 'AUTH_FAILED', 'batch', batchId, 'Authorization rejected: incorrect PIN');
     throw new ActionError('Incorrect PIN. The attempt has been logged.');
   }
+  if (second.kind === 'fingerprint') {
+    if (!u.security?.passkey) throw new ActionError('No fingerprint is enrolled on this account.');
+    return;
+  }
   const o = otps.get(u.id);
-  if (!o || o.batchId !== batchId || o.purpose !== purpose || o.code !== otp.trim()) {
+  if (!o || o.batchId !== batchId || o.purpose !== purpose || o.code !== second.code.trim()) {
     appendAudit(actor(u), 'AUTH_FAILED', 'batch', batchId, 'Authorization rejected: invalid one-time password');
     throw new ActionError('The one-time password is incorrect.');
   }
   if (Date.now() > o.expires) {
     otps.delete(u.id);
-    appendAudit(actor(u), 'AUTH_FAILED', 'batch', batchId, 'Authorization rejected: one-time password expired');
     throw new ActionError('The one-time password has expired. Request a new one.');
   }
   otps.delete(u.id);
 }
 
 export function canSign(u: User | null, b: Batch): { ok: boolean; reason?: string } {
-  if (!u || u.role !== 'signatory') return { ok: false, reason: 'Only a designated signatory can authorize payments.' };
+  if (!u || (u.role !== 'admin' && u.role !== 'signatory')) return { ok: false, reason: 'Only the administrator can authorize payments.' };
   if (!['pending_authorization', 'awaiting_second_signature'].includes(b.status)) return { ok: false, reason: 'This batch is not awaiting authorization.' };
-  if (b.createdBy === u.id) return { ok: false, reason: 'Segregation of duties: you prepared this batch and cannot authorize it.' };
-  if (b.signatures.some((s) => s.userId === u.id)) return { ok: false, reason: 'You have already signed this batch. A different signatory must provide the second signature.' };
+  if (u.role !== 'admin' && b.createdBy === u.id) return { ok: false, reason: 'Segregation of duties: you prepared this batch and cannot authorize it.' };
+  if (b.signatures.some((s) => s.userId === u.id)) return { ok: false, reason: 'You have already authorized this batch.' };
   return { ok: true };
 }
 
-export function authorizeBatch(batchId: string, pin: string, otp: string) {
+export function authorizeBatch(batchId: string, pin: string, second: SecondFactor) {
   const u = requireUser('signatory');
   const b = getBatch(batchId);
   const can = canSign(u, b);
   if (!can.ok) throw new ActionError(can.reason);
-  checkCredentials(u, batchId, pin, otp, 'authorize');
+  checkCredentials(u, batchId, pin, second, 'authorize');
   const s = getState();
   const acct = s.accounts.find((a) => a.id === b.accountId)!;
   const c = summarize(b.items);
@@ -198,9 +255,9 @@ export function authorizeBatch(batchId: string, pin: string, otp: string) {
   const sigs = [...b.signatures, { userId: u.id, name: u.name, title: u.title, at: new Date().toISOString() }];
   const complete = sigs.length >= b.requiredSignatures;
   const status = complete ? 'processing' : 'awaiting_second_signature';
+  const method = second.kind === 'fingerprint' ? 'PIN + fingerprint' : 'PIN + OTP';
   patchBatch(batchId, (bb) => ({ ...bb, signatures: sigs, status }));
-  appendAudit(actor(u), 'BATCH_SIGNED', 'batch', batchId,
-    `Authorized with PIN + OTP (signature ${sigs.length} of ${b.requiredSignatures})`,
+  appendAudit(actor(u), 'BATCH_SIGNED', 'batch', batchId, `Authorized with ${method}`,
     { status: b.status, signatures: b.signatures.length }, { status, signatures: sigs.length });
   if (complete) void runPayout(batchId);
 }
@@ -275,14 +332,14 @@ export async function runPayout(batchId: string, retry = false) {
   }
 }
 
-export function retryFailed(batchId: string, pin: string, otp: string) {
+export function retryFailed(batchId: string, pin: string, second: SecondFactor) {
   const u = requireUser('signatory');
   const b = getBatch(batchId);
   if (b.status !== 'completed_with_failures') throw new ActionError('There are no failed payments to re-run.');
-  checkCredentials(u, batchId, pin, otp, 'retry');
+  checkCredentials(u, batchId, pin, second, 'retry');
   const failed = b.items.filter((i) => i.pay === 'failed');
   patchBatch(batchId, (bb) => ({ ...bb, status: 'processing', items: bb.items.map((i) => (i.pay === 'failed' ? { ...i, pay: 'queued' } : i)) }));
-  appendAudit(actor(u), 'RETRY_AUTHORIZED', 'batch', batchId, `Re-run of ${failed.length} failed payments authorized with PIN + OTP`, { status: b.status, failed: failed.length }, { status: 'processing' });
+  appendAudit(actor(u), 'RETRY_AUTHORIZED', 'batch', batchId, `Re-run of ${failed.length} failed payments authorized with ${second.kind === 'fingerprint' ? 'PIN + fingerprint' : 'PIN + OTP'}`, { status: b.status, failed: failed.length }, { status: 'processing' });
   void runPayout(batchId, true);
 }
 

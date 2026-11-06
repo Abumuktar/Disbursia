@@ -15,11 +15,11 @@ const NAV: { to: string; label: string; icon: typeof LayoutDashboard; roles?: Ro
   { to: '/disburse', label: 'New disbursement', icon: Send, roles: ['officer'] },
   { to: '/approvals', label: 'Approvals', icon: BookCheck, roles: ['signatory'] },
   { to: '/batches', label: 'Batches & receipts', icon: FileStack },
-  { to: '/programmes', label: 'Programmes & account', icon: Landmark },
+  { to: '/programmes', label: 'Account & security', icon: Landmark },
   { to: '/audit', label: 'Audit trail', icon: ShieldCheck },
 ];
 
-export const ROLE_LABEL: Record<Role, string> = { officer: 'Finance Officer', signatory: 'Signatory', auditor: 'Auditor (read-only)' };
+export const ROLE_LABEL: Record<Role, string> = { admin: 'Administrator', officer: 'Finance Officer', signatory: 'Signatory', auditor: 'Auditor (read-only)' };
 
 export function Layout() {
   const user = useAppState((s) => s.users.find((u) => u.id === s.sessionUserId)!);
@@ -40,7 +40,7 @@ export function Layout() {
       </div>
       <div className="h-[3px] bg-gold-400" />
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
-        {NAV.filter((n) => !n.roles || n.roles.includes(user.role)).map((n) => (
+        {NAV.filter((n) => !n.roles || user.role === 'admin' || n.roles.includes(user.role)).map((n) => (
           <NavLink
             key={n.to}
             to={n.to}

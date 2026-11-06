@@ -22,7 +22,6 @@ export default function NewDisbursement() {
   const me = useMe();
   const programmes = useAppState((s) => s.programmes);
   const account = useAppState((s) => s.accounts[0]);
-  const threshold = useAppState((s) => s.settings.secondSignatoryThreshold);
   const nav = useNavigate();
   const [programmeId, setProgrammeId] = useState(programmes[0].id);
   const periodOptions = useMemo(periods, []);
@@ -36,7 +35,7 @@ export default function NewDisbursement() {
   const inputRef = useRef<HTMLInputElement>(null);
   const prog = programmes.find((p) => p.id === programmeId)!;
 
-  if (me.role !== 'officer') {
+  if (me.role !== 'officer' && me.role !== 'admin') {
     return <Alert tone="yellow" title="Finance officers only">Only a finance officer can prepare a disbursement batch. Signatories authorize them from Approvals.</Alert>;
   }
 
@@ -206,12 +205,12 @@ export default function NewDisbursement() {
               <Row k="Programme" v={prog.name} />
               <Row k="Period" v={period} />
               <Row k="From" v={`${account.name} (${bankShort(account.bankCode)})`} />
-              <Row k="Signatures needed" v={total > threshold ? '2 (above ₦50m)' : '1'} />
+              <Row k="Authorization" v="PIN + fingerprint" />
             </dl>
             {total > account.balance && <div className="px-5 pb-3"><Alert tone="red">The batch exceeds the available balance.</Alert></div>}
             <div className="border-t border-slate-100 p-5">
               <Button size="lg" className="w-full" disabled={!parsed?.rows.length || busy} onClick={verify} icon={<ArrowRight className="h-4 w-4" />}>Verify with NIBSS</Button>
-              <p className="mt-3 flex gap-2 text-xs text-slate-500"><Info className="h-3.5 w-3.5 shrink-0" />Nothing is paid at this step. Every name is checked first, then the batch goes to a signatory.</p>
+              <p className="mt-3 flex gap-2 text-xs text-slate-500"><Info className="h-3.5 w-3.5 shrink-0" />Nothing is paid at this step. Every name is checked first, then you authorize the batch.</p>
             </div>
           </Card>
           <Card className="p-5 text-xs text-slate-600">
@@ -219,8 +218,8 @@ export default function NewDisbursement() {
             <ul className="list-disc space-y-1 pl-4">
               <li>NUBAN check digit validated for every account</li>
               <li>Duplicate accounts in the same file are held back</li>
-              <li>Names scoring below 90% need an officer decision; below 70% are blocked</li>
-              <li>You cannot authorize a batch you prepared</li>
+              <li>Names scoring below 90% need your decision; below 70% are blocked</li>
+              <li>Payment needs your PIN and fingerprint</li>
             </ul>
           </Card>
         </div>

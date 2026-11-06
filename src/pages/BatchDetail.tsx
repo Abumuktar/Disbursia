@@ -49,7 +49,7 @@ export default function BatchDetail() {
   const acct = account(batch.accountId);
   const creator = user(batch.createdBy);
   const sign = canSign(me, batch);
-  const isDraftOwner = me.role === 'officer' && batch.createdBy === me.id && batch.status === 'verified';
+  const isDraftOwner = (me.role === 'admin' || (me.role === 'officer' && batch.createdBy === me.id)) && batch.status === 'verified';
   const pages = Math.max(1, Math.ceil(rows.length / PAGE));
   const pageRows = rows.slice(page * PAGE, (page + 1) * PAGE);
   const paying = ['processing', 'completed', 'completed_with_failures'].includes(batch.status);
@@ -115,7 +115,7 @@ export default function BatchDetail() {
             </div>
             {isDraftOwner ? (
               <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 bg-white px-5 py-4">
-                <p className="flex-1 text-sm text-slate-600">Check the partial matches below, then submit the batch to a signatory. Blocked rows are never paid.</p>
+                <p className="flex-1 text-sm text-slate-600">Check the partial matches below, then submit the batch for authorization. Blocked rows are never paid.</p>
                 <Button variant="ghost" size="sm" icon={<Trash2 className="h-4 w-4" />} onClick={() => act(() => cancelBatch(batch.id), 'Draft discarded')}>Discard</Button>
                 {c.review > 0 && <Button variant="secondary" size="sm" onClick={() => act(() => setItemsIncluded(batch.id, batch.items.filter((i) => i.verify === 'review').map((i) => i.id), true), 'Partial matches accepted')}>Accept all partial ({c.review})</Button>}
                 <Button icon={<Send className="h-4 w-4" />} disabled={!c.included} onClick={() => act(() => submitBatch(batch.id), 'Submitted for authorization')}>Submit for authorization</Button>
@@ -130,14 +130,14 @@ export default function BatchDetail() {
               <div className="rounded-full bg-gold-400 p-2 text-brand-950"><BadgeCheck className="h-5 w-5" /></div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-gold-900">{naira(c.includedAmount)} to {num(c.included)} beneficiaries awaiting authorization</p>
-                <p className="text-xs text-gold-800">{batch.signatures.length} of {batch.requiredSignatures} signature{batch.requiredSignatures > 1 ? 's' : ''} collected{batch.requiredSignatures > 1 ? ' · above ₦50m, two signatories required' : ''}</p>
+                <p className="text-xs text-gold-800">Authorize with your PIN and fingerprint to release payment</p>
               </div>
               {sign.ok ? (
                 <div className="flex gap-2">
                   <Button variant="secondary" onClick={() => setRejectOpen(true)} icon={<XCircle className="h-4 w-4" />}>Reject</Button>
-                  <Button onClick={() => setAuthOpen('authorize')} icon={<ShieldCheck className="h-4 w-4" />}>Authorize with PIN + OTP</Button>
+                  <Button onClick={() => setAuthOpen('authorize')} icon={<ShieldCheck className="h-4 w-4" />}>Authorize payment</Button>
                 </div>
-              ) : me.role === 'signatory' ? <p className="max-w-sm text-xs text-gold-900">{sign.reason}</p> : null}
+              ) : me.role === 'signatory' || me.role === 'admin' ? <p className="max-w-sm text-xs text-gold-900">{sign.reason}</p> : null}
             </div>
           </Card>
         )}
@@ -165,8 +165,8 @@ export default function BatchDetail() {
             </div>
             {batch.status === 'completed_with_failures' && (
               <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 bg-white px-5 py-4">
-                <p className="flex-1 text-sm text-slate-600">Failed payments were not debited. A signatory can re-run them once the destination banks are available.</p>
-                {me.role === 'signatory' && <Button variant="secondary" icon={<RotateCcw className="h-4 w-4" />} onClick={() => setAuthOpen('retry')}>Re-run {num(c.failed)} failed</Button>}
+                <p className="flex-1 text-sm text-slate-600">Failed payments were not debited. You can re-run them once the destination banks are available.</p>
+                {(me.role === 'signatory' || me.role === 'admin') && <Button variant="secondary" icon={<RotateCcw className="h-4 w-4" />} onClick={() => setAuthOpen('retry')}>Re-run {num(c.failed)} failed</Button>}
               </div>
             )}
           </Card>
@@ -219,7 +219,7 @@ export default function BatchDetail() {
             </dl>
           </Card>
           <Card>
-            <CardHeader title="Signatories" subtitle={`${batch.signatures.length} of ${batch.requiredSignatures} required`} />
+            <CardHeader title="Authorization" subtitle={batch.signatures.length ? "Signed" : "Not yet authorized"} />
             <ul className="space-y-3 p-5">
               {Array.from({ length: batch.requiredSignatures }).map((_, i) => {
                 const s = batch.signatures[i];
@@ -230,7 +230,7 @@ export default function BatchDetail() {
                     </div>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-slate-800">{s ? s.name : 'Awaiting signature'}</p>
-                      <p className="truncate text-xs text-slate-500">{s ? `${s.title} · ${dateTime(s.at)}` : 'PIN + OTP'}</p>
+                      <p className="truncate text-xs text-slate-500">{s ? `${s.title} · ${dateTime(s.at)}` : 'PIN + fingerprint'}</p>
                     </div>
                   </li>
                 );

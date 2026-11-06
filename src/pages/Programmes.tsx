@@ -1,11 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, Landmark, Users } from 'lucide-react';
+import { Building2, Fingerprint, KeyRound, Landmark, ScanFace, ShieldCheck, Users } from 'lucide-react';
 import { useAppState } from '../lib/store';
 import { batchSummary } from '../lib/hooks';
 import { bankName } from '../lib/banks';
 import { dateOnly, naira, nairaShort, num } from '../lib/format';
-import { BatchStatusBadge, Card, CardHeader, KV, PageHeader } from '../components/ui';
+import { ActionError, resetSecurity } from '../lib/actions';
+import { useMe } from '../lib/hooks';
+import { Alert, Badge, BatchStatusBadge, Button, Card, CardHeader, Input, KV, Label, Modal, PageHeader } from '../components/ui';
 
 export default function Programmes() {
   const programmes = useAppState((s) => s.programmes);
@@ -23,7 +25,7 @@ export default function Programmes() {
 
   return (
     <>
-      <PageHeader eyebrow="Configuration" title="Programmes & account" subtitle="The programmes Disbursia pays and the single source account every payment is debited from." />
+      <PageHeader eyebrow="Configuration" title="Account & security" subtitle="The source account, your sign-in security and the programmes Disbursia pays." />
 
       <Card className="mb-6 overflow-hidden">
         <div className="relative bg-brand-900 px-6 py-6 text-white">
@@ -43,11 +45,13 @@ export default function Programmes() {
           </div>
         </div>
         <dl className="grid grid-cols-1 gap-6 px-6 py-5 sm:grid-cols-3">
-          <KV label="Second signatory required above">{naira(settings.secondSignatoryThreshold)}</KV>
+          <KV label="Authorization">PIN + fingerprint, administrator only</KV>
           <KV label="Auto-accept name match at">{Math.round(settings.autoAcceptScore * 100)}% or higher</KV>
           <KV label="Block name match below">{Math.round(settings.reviewScore * 100)}%</KV>
         </dl>
       </Card>
+
+      <SecurityCard />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {stats.map(({ p, paid, credited, last }) => (
@@ -72,5 +76,40 @@ export default function Programmes() {
         ))}
       </div>
     </>
+  );
+}
+
+function SecurityCard() {
+  const me = useMe();
+  const sec = me.security;
+  const [open, setOpen] = useState(false);
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState('');
+  const factors = [
+    { icon: ScanFace, label: 'Face scan', on: !!sec?.face },
+    { icon: Fingerprint, label: 'Laptop fingerprint', on: !!sec?.passkey },
+    { icon: KeyRound, label: '6-digit PIN', on: true },
+  ];
+  return (
+    <Card className="mb-6">
+      <CardHeader title="Sign-in security" subtitle={`${me.name} · sole administrator`}
+        action={<Button variant="secondary" size="sm" onClick={() => { setOpen(true); setPin(''); setError(''); }}>Re-enroll face & fingerprint</Button>} />
+      <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-3">
+        {factors.map((f) => (
+          <div key={f.label} className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
+            <span className="rounded-lg bg-brand-50 p-2 text-brand-700"><f.icon className="h-5 w-5" /></span>
+            <span className="flex-1 text-sm font-medium text-slate-800">{f.label}</span>
+            <Badge tone={f.on ? 'green' : 'yellow'}>{f.on ? 'Enrolled' : 'Not set'}</Badge>
+          </div>
+        ))}
+      </div>
+      <p className="flex items-center gap-1.5 border-t border-slate-100 px-5 py-3 text-xs text-slate-500"><ShieldCheck className="h-3.5 w-3.5" />Face data and the fingerprint key stay on this device. The fingerprint itself never leaves the laptop's sensor.</p>
+      <Modal open={open} onClose={() => setOpen(false)} title="Re-enroll face and fingerprint" subtitle="You will be signed out and asked to enroll again."
+        footer={<><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button variant="danger" disabled={pin.length !== 6} onClick={() => { try { resetSecurity(pin); } catch (e) { setError(e instanceof ActionError ? e.message : String(e)); } }}>Reset and sign out</Button></>}>
+        <Label htmlFor="reset-pin">Confirm with your PIN</Label>
+        <Input id="reset-pin" type="password" inputMode="numeric" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} className="font-mono tracking-[0.5em]" placeholder="••••••" />
+        {error && <div className="mt-3"><Alert tone="red">{error}</Alert></div>}
+      </Modal>
+    </Card>
   );
 }

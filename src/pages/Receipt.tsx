@@ -107,7 +107,7 @@ export default function Receipt() {
                   <p className="font-serif text-lg italic text-brand-800">{s.name}</p>
                   <p className="text-sm font-semibold text-slate-800">{s.name}</p>
                   <p className="text-xs text-slate-500">{s.title}</p>
-                  <p className="mt-1 text-[11px] text-slate-400">Signed with PIN + OTP · {dateTime(s.at)}</p>
+                  <p className="mt-1 text-[11px] text-slate-400">Authorized with PIN + fingerprint · {dateTime(s.at)}</p>
                 </div>
               ))}
             </div>

@@ -1,19 +1,17 @@
 import type { AppState, AuditEntry, Batch, BatchItem, Programme, TreasuryAccount, User } from './types';
 import { chainEntry, STATE_VERSION } from './store';
-import { sha256 } from './sha256';
 import { generateBeneficiaries } from './sample';
 import { nameEnquiry, nipTransfer } from './nibss';
 import { nameSimilarity } from './names';
 import { mulberry32 } from './rng';
 
-export const DEMO_PINS: Record<string, string> = { u1: '1111', u2: '2222', u3: '3333', u4: '4444' };
+/** SHA-256 of "u1:<PIN>". Only the hash is kept in source. */
+const ADMIN_PIN_HASH = 'e14fdcad7e4867e175c38719023f1f359e26f39ca3efc182d370bbc85f392bc4';
 
-const USERS: User[] = ([
-  { id: 'u1', name: 'Aisha Bello Mashi', title: 'Principal Finance Officer, Disbursements', role: 'officer', phone: '+2348031234567', email: 'a.mashi@oag.kt.gov.ng', pinHash: '' },
-  { id: 'u2', name: 'Musa Abdullahi Kankia', title: 'Accountant-General of the State', role: 'signatory', phone: '+2348067654321', email: 'ag@oag.kt.gov.ng', pinHash: '' },
-  { id: 'u3', name: 'Zainab Usman Dikko', title: 'Director of Treasury', role: 'signatory', phone: '+2348091112233', email: 'dt@oag.kt.gov.ng', pinHash: '' },
-  { id: 'u4', name: 'Ibrahim Sani Daura', title: 'Audit Inspector, Office of the Auditor-General', role: 'auditor', phone: '+2348025556677', email: 'i.daura@oaug.kt.gov.ng', pinHash: '' },
-] as User[]).map((u) => ({ ...u, pinHash: sha256(`${u.id}:${DEMO_PINS[u.id]}`) }));
+/** The sole administrator. Face and fingerprint are enrolled on first sign-in. */
+const USERS: User[] = [
+  { id: 'u1', name: 'Abubakar Muktar', title: 'System Administrator', role: 'admin', phone: '', email: '', pinHash: ADMIN_PIN_HASH },
+];
 
 /**
  * Sole source account for all disbursements. Replace the account number with the
@@ -94,7 +92,7 @@ export function seedState(): AppState {
       items = items.map((it) => (it.verify === 'review' && r() < 0.8 ? { ...it, include: true } : it));
       const acct = accounts.find((a) => a.id === p.defaultAccountId)!;
       const total = items.filter((i) => i.include).reduce((s, i) => s + i.amount, 0);
-      const required = total > 50_000_000_00 ? 2 : 1;
+      const required = 1;
       const batch: Batch = {
         id: `b-${reference}`, reference, programmeId: p.id, accountId: acct.id,
         narration: `${p.name} ${period}`, period, fileName: `${p.code.toLowerCase()}_${period.replace(' ', '_').toLowerCase()}.xlsx`,
@@ -113,14 +111,14 @@ export function seedState(): AppState {
       if (isCurrent) { batches.push(batch); continue; }
 
       let t = new Date(submitted.getTime() + (30 + r() * 120) * 60000);
-      const signers = required === 2 ? ['u3', 'u2'] : [r() < 0.5 ? 'u2' : 'u3'];
+      const signers = ['u1'];
       signers.forEach((sid, i) => {
         t = new Date(t.getTime() + i * (20 + r() * 90) * 60000);
-        ev(t, sid, 'OTP_ISSUED', 'batch', batch.id, `One-time password sent to ${u(sid).phone.slice(0, 7)}•••••`);
+        ev(t, sid, 'FINGERPRINT_VERIFIED', 'batch', batch.id, 'Fingerprint confirmed on the administrator\'s device');
         const tSig = new Date(t.getTime() + 40000);
         batch.signatures.push({ userId: sid, name: u(sid).name, title: u(sid).title, at: tSig.toISOString() });
         const st = i + 1 >= required ? 'processing' : 'awaiting_second_signature';
-        ev(tSig, sid, 'BATCH_SIGNED', 'batch', batch.id, `Authorized with PIN + OTP (signature ${i + 1} of ${required})`, { status: batch.status, signatures: i }, { status: st, signatures: i + 1 });
+        ev(tSig, sid, 'BATCH_SIGNED', 'batch', batch.id, 'Authorized with PIN + fingerprint', { status: batch.status, signatures: i }, { status: st, signatures: i + 1 });
         batch.status = st;
         t = tSig;
       });
@@ -149,8 +147,8 @@ export function seedState(): AppState {
         const firstTotal = firstPaid.reduce((s, i) => s + i.amount, 0);
         ev(done, 'system', 'PAYOUT_COMPLETED', 'batch', batch.id, `${firstPaid.length} credited, ${firstFailed} failed, ₦${(firstTotal / 100).toLocaleString('en-NG')} debited in total`, { status: 'processing' }, { status: 'completed_with_failures', success: firstPaid.length, failed: firstFailed, debited: firstTotal });
         const retryAt = new Date(done.getTime() + (16 + r() * 4) * 3600000);
-        ev(retryAt, signers[0], 'OTP_ISSUED', 'batch', batch.id, `One-time password sent to ${u(signers[0]).phone.slice(0, 7)}••••• to re-run failed payments on ${reference}`);
-        ev(new Date(retryAt.getTime() + 35000), signers[0], 'RETRY_AUTHORIZED', 'batch', batch.id, `Re-run of ${firstFailed} failed payments authorized with PIN + OTP`, { status: 'completed_with_failures', failed: firstFailed }, { status: 'processing' });
+        ev(retryAt, signers[0], 'FINGERPRINT_VERIFIED', 'batch', batch.id, `Fingerprint confirmed to re-run failed payments on ${reference}`);
+        ev(new Date(retryAt.getTime() + 35000), signers[0], 'RETRY_AUTHORIZED', 'batch', batch.id, `Re-run of ${firstFailed} failed payments authorized with PIN + fingerprint`, { status: 'completed_with_failures', failed: firstFailed }, { status: 'processing' });
         const retryDone = new Date(retryAt.getTime() + 60000);
         batch.items = batch.items.map((it) => {
           if (it.pay !== 'failed') return it;

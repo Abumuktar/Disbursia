@@ -54,7 +54,7 @@ export default function Dashboard() {
   const maxProg = Math.max(1, ...m.byProg.map((x) => x.amount));
   const recentBatches = batches.filter((b) => b.status !== 'cancelled').slice(0, 6);
 
-  const primary = me.role === 'officer'
+  const primary = me.role === 'officer' || me.role === 'admin'
     ? <Link to="/disburse"><Button icon={<Send className="h-4 w-4" />}>New disbursement</Button></Link>
     : me.role === 'signatory'
       ? <Link to="/approvals"><Button icon={<BadgeCheck className="h-4 w-4" />}>Approvals{m.pending.length ? ` (${m.pending.length})` : ''}</Button></Link>
@@ -89,14 +89,14 @@ export default function Dashboard() {
       </section>
 
       {/* Action needed */}
-      {me.role === 'signatory' && m.pending.length > 0 && (
+      {(me.role === 'signatory' || me.role === 'admin') && m.pending.length > 0 && (
         <Notice to="/approvals" tone="yellow" icon={<Clock className="h-5 w-5" />} title={`${m.pending.length} batch${m.pending.length > 1 ? 'es' : ''} awaiting your authorization`} sub={`${naira(m.pendingAmount)} ready to pay once signed`} />
       )}
-      {me.role === 'officer' && drafts.length > 0 && (
+      {(me.role === 'officer' || me.role === 'admin') && drafts.length > 0 && (
         <Notice to={`/batches/${drafts[0].id}`} tone="yellow" icon={<Clock className="h-5 w-5" />} title={`${drafts.length} verified draft${drafts.length > 1 ? 's' : ''} not yet submitted`} sub="Review partial matches and submit for authorization" />
       )}
-      {me.role === 'officer' && rejected.length > 0 && (
-        <Notice to={`/batches/${rejected[0].id}`} tone="red" icon={<XCircle className="h-5 w-5" />} title={`${rejected.length} batch${rejected.length > 1 ? 'es' : ''} returned by a signatory`} sub={rejected[0].rejection?.reason ?? ''} />
+      {(me.role === 'officer' || me.role === 'admin') && rejected.length > 0 && (
+        <Notice to={`/batches/${rejected[0].id}`} tone="red" icon={<XCircle className="h-5 w-5" />} title={`${rejected.length} batch${rejected.length > 1 ? 'es' : ''} rejected`} sub={rejected[0].rejection?.reason ?? ''} />
       )}
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">

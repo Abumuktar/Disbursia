@@ -20,9 +20,9 @@ export default function Approvals() {
 
   return (
     <>
-      <PageHeader eyebrow="Signatory desk" title="Approvals" subtitle="Batches verified by finance officers and waiting for your PIN + OTP. Batches above ₦50 million need two different signatories." />
+      <PageHeader eyebrow="Authorization" title="Approvals" subtitle="Verified batches waiting for your PIN and fingerprint." />
       {queue.length === 0 ? (
-        <Card><Empty icon={<CheckCircle2 className="h-5 w-5" />} title="Nothing awaiting authorization">New batches appear here as soon as an officer submits them.</Empty></Card>
+        <Card><Empty icon={<CheckCircle2 className="h-5 w-5" />} title="Nothing awaiting authorization">Batches appear here once they are verified and submitted.</Empty></Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {queue.map((b) => {

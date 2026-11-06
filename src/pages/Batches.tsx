@@ -23,7 +23,7 @@ export default function Batches() {
   return (
     <>
       <PageHeader eyebrow="Records" title="Batches & receipts" subtitle="Every disbursement batch, its verification results and a receipt for each credited payment."
-        actions={me.role === 'officer' && <Link to="/disburse"><Button icon={<Send className="h-4 w-4" />}>New disbursement</Button></Link>} />
+        actions={(me.role === 'officer' || me.role === 'admin') && <Link to="/disburse"><Button icon={<Send className="h-4 w-4" />}>New disbursement</Button></Link>} />
       <Card>
         <div className="flex flex-wrap gap-3 border-b border-slate-100 p-4">
           <div className="relative w-full sm:w-auto sm:min-w-[220px] sm:flex-1">
