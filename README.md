@@ -12,7 +12,7 @@ It pays thousands of beneficiaries in one run, and every payment is **verified, 
 | **Dashboard** | Amount credited per month, authorization queue, programme breakdown, and the three pilot success measures from the concept brief. |
 | **New disbursement** | Upload a CSV/XLSX schedule (or generate a sample of up to 20,000 rows). Column names are auto-detected, rows are validated and you see a preview. |
 | **Verification** | Every row gets a NUBAN check-digit validation and a NIBSS name enquiry. Names are fuzzy-matched regardless of word order. Each row comes out *matched*, *partial* (officer decides), *mismatch* or *invalid* (blocked), or *duplicate*. |
-| **Authorization** | The administrator releases the whole batch with PIN + fingerprint (a one-time code is the fallback if no fingerprint is enrolled). A batch can also be rejected with a reason. |
+| **Authorization** | The administrator releases the whole batch with PIN + fingerprint. A batch can also be rejected with a reason. |
 | **Payout** | NIP transfers are sent from the single source account, with live progress. Failed payments are not debited and can be re-run with PIN + fingerprint. |
 | **Receipts** | Each credit gets a crested, printable and shareable receipt. It shows the transaction reference, NIP session ID, sender, beneficiary, the authorizing administrator named in full, and a verification code. |
 | **Audit trail** | Every action records the actor, the time, and the state before and after. Entries are SHA-256 hash-chained, a one-click integrity check is available, and the log exports to CSV. |
@@ -32,7 +32,7 @@ Camera and fingerprint need a secure origin: `localhost` or HTTPS.
 
 ## Important notes
 
-- **Bank integration is simulated.** `src/lib/nibss.ts` stands in for the NIBSS Name Enquiry and NIP Funds Transfer APIs. Its responses are deterministic, so demos are repeatable. To go live, replace these two functions with calls through the sponsoring bank's gateway, and move state, PIN checks, OTP delivery and the audit chain to a server.
+- **Bank integration is simulated.** `src/lib/nibss.ts` stands in for the NIBSS Name Enquiry and NIP Funds Transfer APIs. Its responses are deterministic, so demos are repeatable. To go live, replace these two functions with calls through the sponsoring bank's gateway, and move state, PIN checks, biometric verification and the audit chain to a server.
 - **Data is stored in the browser** (IndexedDB) for this prototype. Use *Reset demo data* on the sign-in page to start again.
 - **Source account**: Abucore Enterprises, Sterling Bank, `0147716203`, with an opening balance of ₦18,000,000.00 (`SOURCE_ACCOUNT` and `OPENING_BALANCE` in `src/lib/seed.ts`).
 - **State crest**: put the official artwork at `public/katsina-crest.png`. Until then, a drawn green-and-gold seal is shown. The Disbursia logo is rendered in code (`src/components/Wordmark.tsx`).

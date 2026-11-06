@@ -199,39 +199,25 @@ export function cancelBatch(batchId: string) {
 
 // ---- Authorization ---------------------------------------------------------
 
-const otps = new Map<string, { code: string; expires: number; batchId: string; purpose: string }>();
+/** Payment authorization always needs the PIN and the enrolled laptop fingerprint. */
+export type SecondFactor = { kind: 'fingerprint' };
 
-/** Fallback second factor when no fingerprint is enrolled on this device. */
-export function requestOtp(batchId: string, purpose: 'authorize' | 'retry'): { code: string } {
+/** Step 1 of authorization: check the PIN before the fingerprint prompt. Failures are audited. */
+export function checkPaymentPin(batchId: string, pin: string) {
   const u = requireUser('signatory');
-  const b = getBatch(batchId);
-  const code = String(Math.floor(100000 + Math.random() * 900000));
-  otps.set(u.id, { code, expires: Date.now() + 5 * 60000, batchId, purpose });
-  appendAudit(actor(u), 'OTP_ISSUED', 'batch', batchId, `One-time password issued to ${purpose === 'retry' ? 're-run failed payments on' : 'authorize'} ${b.reference}`);
-  return { code };
+  if (!u.security?.passkey) throw new ActionError('Register your fingerprint in Settings before authorizing payments.');
+  if (!pinOk(u, pin)) {
+    appendAudit(actor(u), 'AUTH_FAILED', 'batch', batchId, 'Payment authorization rejected: incorrect PIN');
+    throw new ActionError('Incorrect PIN. The attempt has been logged.');
+  }
 }
 
-export type SecondFactor = { kind: 'fingerprint' } | { kind: 'otp'; code: string };
-
-function checkCredentials(u: User, batchId: string, pin: string, second: SecondFactor, purpose: string) {
+function checkCredentials(u: User, batchId: string, pin: string, second: SecondFactor) {
   if (!pinOk(u, pin)) {
     appendAudit(actor(u), 'AUTH_FAILED', 'batch', batchId, 'Authorization rejected: incorrect PIN');
     throw new ActionError('Incorrect PIN. The attempt has been logged.');
   }
-  if (second.kind === 'fingerprint') {
-    if (!u.security?.passkey) throw new ActionError('No fingerprint is enrolled on this account.');
-    return;
-  }
-  const o = otps.get(u.id);
-  if (!o || o.batchId !== batchId || o.purpose !== purpose || o.code !== second.code.trim()) {
-    appendAudit(actor(u), 'AUTH_FAILED', 'batch', batchId, 'Authorization rejected: invalid one-time password');
-    throw new ActionError('The one-time password is incorrect.');
-  }
-  if (Date.now() > o.expires) {
-    otps.delete(u.id);
-    throw new ActionError('The one-time password has expired. Request a new one.');
-  }
-  otps.delete(u.id);
+  if (second.kind !== 'fingerprint' || !u.security?.passkey) throw new ActionError('Fingerprint confirmation is required to authorize payments.');
 }
 
 export function canSign(u: User | null, b: Batch): { ok: boolean; reason?: string } {
@@ -247,7 +233,7 @@ export function authorizeBatch(batchId: string, pin: string, second: SecondFacto
   const b = getBatch(batchId);
   const can = canSign(u, b);
   if (!can.ok) throw new ActionError(can.reason);
-  checkCredentials(u, batchId, pin, second, 'authorize');
+  checkCredentials(u, batchId, pin, second);
   const s = getState();
   const acct = s.accounts.find((a) => a.id === b.accountId)!;
   const c = summarize(b.items);
@@ -255,7 +241,7 @@ export function authorizeBatch(batchId: string, pin: string, second: SecondFacto
   const sigs = [...b.signatures, { userId: u.id, name: u.name, title: u.title, at: new Date().toISOString() }];
   const complete = sigs.length >= b.requiredSignatures;
   const status = complete ? 'processing' : 'awaiting_second_signature';
-  const method = second.kind === 'fingerprint' ? 'PIN + fingerprint' : 'PIN + OTP';
+  const method = 'PIN + fingerprint';
   patchBatch(batchId, (bb) => ({ ...bb, signatures: sigs, status }));
   appendAudit(actor(u), 'BATCH_SIGNED', 'batch', batchId, `Authorized with ${method}`,
     { status: b.status, signatures: b.signatures.length }, { status, signatures: sigs.length });
@@ -336,10 +322,10 @@ export function retryFailed(batchId: string, pin: string, second: SecondFactor) 
   const u = requireUser('signatory');
   const b = getBatch(batchId);
   if (b.status !== 'completed_with_failures') throw new ActionError('There are no failed payments to re-run.');
-  checkCredentials(u, batchId, pin, second, 'retry');
+  checkCredentials(u, batchId, pin, second);
   const failed = b.items.filter((i) => i.pay === 'failed');
   patchBatch(batchId, (bb) => ({ ...bb, status: 'processing', items: bb.items.map((i) => (i.pay === 'failed' ? { ...i, pay: 'queued' } : i)) }));
-  appendAudit(actor(u), 'RETRY_AUTHORIZED', 'batch', batchId, `Re-run of ${failed.length} failed payments authorized with ${second.kind === 'fingerprint' ? 'PIN + fingerprint' : 'PIN + OTP'}`, { status: b.status, failed: failed.length }, { status: 'processing' });
+  appendAudit(actor(u), 'RETRY_AUTHORIZED', 'batch', batchId, `Re-run of ${failed.length} failed payments authorized with PIN + fingerprint`, { status: b.status, failed: failed.length }, { status: 'processing' });
   void runPayout(batchId, true);
 }
 

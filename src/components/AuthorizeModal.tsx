@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Fingerprint, KeyRound, Lock, MessageSquareText, ShieldCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Check, Fingerprint, KeyRound, Lock } from 'lucide-react';
 import type { Batch } from '../lib/types';
-import { ActionError, authorizeBatch, logEvent, rejectBatch, requestOtp, retryFailed, updateFingerprintCounter } from '../lib/actions';
+import { ActionError, authorizeBatch, checkPaymentPin, logEvent, rejectBatch, retryFailed, updateFingerprintCounter } from '../lib/actions';
 import { biometricError, verifyFingerprint } from '../lib/biometrics';
 import { amountWords, naira, num } from '../lib/format';
 import { batchSummary, useLookups, useMe } from '../lib/hooks';
 import { bankShort } from '../lib/banks';
-import { Alert, Button, Input, Label, Modal, Textarea } from './ui';
+import { Alert, Button, Input, Label, Modal, Textarea, cx } from './ui';
 import { toast } from './toast';
 
 export function AuthorizeModal({ batch, open, onClose, mode = 'authorize' }: { batch: Batch; open: boolean; onClose: () => void; mode?: 'authorize' | 'retry' }) {
@@ -14,58 +15,44 @@ export function AuthorizeModal({ batch, open, onClose, mode = 'authorize' }: { b
   const me = useMe();
   const passkey = me.security?.passkey;
   const [pin, setPin] = useState('');
-  const [otp, setOtp] = useState('');
-  const [sent, setSent] = useState(false);
+  const [stage, setStage] = useState<'pin' | 'finger' | 'done'>('pin');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) { setPin(''); setOtp(''); setSent(false); setError(''); } }, [open]);
+  useEffect(() => { if (open) { setPin(''); setStage('pin'); setError(''); setBusy(false); } }, [open]);
   const c = batchSummary(batch);
   const amount = mode === 'retry' ? c.failedAmount : c.includedAmount;
   const count = mode === 'retry' ? c.failed : c.included;
   const acct = account(batch.accountId);
 
-  const send = () => {
-    setError('');
-    try {
-      const r = requestOtp(batch.id, mode);
-      setSent(true);
-      toast('sms', 'One-time password', <>Disbursia OTP <b className="font-mono text-base tracking-widest text-slate-900">{r.code}</b> to {mode === 'retry' ? 're-run failed payments on' : 'authorize'} {batch.reference} ({naira(amount)}). Expires in 5 minutes.</>);
-    } catch (e) { setError(e instanceof ActionError ? e.message : String(e)); }
-  };
-
-  const done = () => {
-    toast('success', mode === 'retry' ? 'Re-run authorized' : 'Batch authorized', 'Payments are being sent through NIP.');
-    onClose();
-  };
-
   const confirm = async () => {
     setError(''); setBusy(true);
     try {
-      if (passkey) {
-        const { signCount } = await verifyFingerprint(passkey);
-        updateFingerprintCounter(signCount);
-        if (mode === 'retry') retryFailed(batch.id, pin, { kind: 'fingerprint' }); else authorizeBatch(batch.id, pin, { kind: 'fingerprint' });
-      } else {
-        await new Promise((r) => setTimeout(r, 400));
-        if (mode === 'retry') retryFailed(batch.id, pin, { kind: 'otp', code: otp }); else authorizeBatch(batch.id, pin, { kind: 'otp', code: otp });
-      }
-      done();
+      checkPaymentPin(batch.id, pin);
     } catch (e) {
-      setError(e instanceof ActionError ? e.message : biometricError(e));
-      if (!(e instanceof ActionError)) logEvent('AUTH_FAILED', 'batch', batch.id, `Authorization fingerprint check failed: ${biometricError(e)}`);
-      setOtp('');
+      setError(e instanceof ActionError ? e.message : String(e)); setPin(''); setBusy(false); return;
+    }
+    setStage('finger');
+    try {
+      const { signCount } = await verifyFingerprint(passkey!);
+      updateFingerprintCounter(signCount);
+      if (mode === 'retry') retryFailed(batch.id, pin, { kind: 'fingerprint' }); else authorizeBatch(batch.id, pin, { kind: 'fingerprint' });
+      setStage('done');
+      await new Promise((r) => setTimeout(r, 700));
+      toast('success', mode === 'retry' ? 'Re-run authorized' : 'Payment authorized', 'Payments are being sent through NIP.');
+      onClose();
+    } catch (e) {
+      const msg = e instanceof ActionError ? e.message : biometricError(e);
+      if (!(e instanceof ActionError)) logEvent('AUTH_FAILED', 'batch', batch.id, `Payment fingerprint check failed: ${msg}`);
+      setError(msg); setStage('pin');
     } finally { setBusy(false); }
   };
 
-  const ready = pin.length === 6 && (passkey || otp.length === 6);
   return (
-    <Modal open={open} onClose={onClose} title={mode === 'retry' ? 'Re-run failed payments' : 'Authorize disbursement'} subtitle={`${batch.reference} · ${programme(batch.programmeId).name}`}
-      footer={<>
+    <Modal open={open} onClose={busy ? () => undefined : onClose} title={mode === 'retry' ? 'Re-run failed payments' : 'Authorize payment'} subtitle={`${batch.reference} · ${programme(batch.programmeId).name}`}
+      footer={stage === 'pin' ? <>
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button onClick={confirm} loading={busy} disabled={!ready} icon={passkey ? <Fingerprint className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}>
-          {passkey ? 'Confirm with fingerprint' : mode === 'retry' ? 'Authorize re-run' : 'Authorize payment'}
-        </Button>
-      </>}>
+        <Button onClick={confirm} loading={busy} disabled={pin.length !== 6 || !passkey} icon={<Fingerprint className="h-4 w-4" />}>Continue to fingerprint</Button>
+      </> : undefined}>
       <div className="rounded-xl bg-brand-900 p-5 text-white">
         <p className="text-xs uppercase tracking-wider text-gold-300">You are authorizing</p>
         <p className="mt-1 text-3xl font-bold tabular">{naira(amount)}</p>
@@ -75,34 +62,46 @@ export function AuthorizeModal({ batch, open, onClose, mode = 'authorize' }: { b
           <div><p className="text-brand-300">From</p><p className="truncate font-semibold">{acct.name} · {bankShort(acct.bankCode)}</p></div>
         </div>
       </div>
-      <div className="mt-5 space-y-4">
-        <div>
-          <Label htmlFor="auth-pin">1. Your 6-digit PIN</Label>
+
+      <ol className="mt-5 flex items-center gap-2 text-xs font-semibold">
+        <li className={cx('flex items-center gap-1.5 rounded-full px-3 py-1.5', stage === 'pin' ? 'bg-brand-700 text-white' : 'bg-brand-50 text-brand-700')}>
+          {stage === 'pin' ? <KeyRound className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" strokeWidth={3} />} 1. PIN
+        </li>
+        <span className={cx('h-0.5 w-8 rounded-full', stage === 'pin' ? 'bg-slate-200' : 'bg-brand-500')} />
+        <li className={cx('flex items-center gap-1.5 rounded-full px-3 py-1.5', stage === 'finger' ? 'bg-brand-700 text-white' : stage === 'done' ? 'bg-brand-50 text-brand-700' : 'bg-slate-100 text-slate-400')}>
+          {stage === 'done' ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : <Fingerprint className="h-3.5 w-3.5" />} 2. Fingerprint
+        </li>
+      </ol>
+
+      {!passkey ? (
+        <div className="mt-4"><Alert tone="yellow" title="Fingerprint not registered">Register your fingerprint in <Link to="/settings" className="font-semibold underline" onClick={onClose}>Settings</Link> before authorizing payments.</Alert></div>
+      ) : stage === 'pin' ? (
+        <div className="mt-4">
+          <Label htmlFor="auth-pin">Your 6-digit PIN</Label>
           <div className="relative">
             <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input id="auth-pin" type="password" inputMode="numeric" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} className="pl-9 font-mono tracking-[0.5em]" placeholder="••••••" autoFocus />
+            <Input id="auth-pin" type="password" inputMode="numeric" maxLength={6} value={pin} autoFocus
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+              onKeyDown={(e) => { if (e.key === 'Enter' && pin.length === 6) void confirm(); }}
+              className="pl-9 font-mono tracking-[0.5em]" placeholder="••••••" />
           </div>
+          <p className="mt-2 text-xs text-slate-500">Next, touch your laptop's fingerprint sensor to release the payment.</p>
         </div>
-        {passkey ? (
-          <div className="flex items-center gap-3 rounded-xl border border-brand-200 bg-brand-50/60 px-4 py-3">
-            <Fingerprint className="h-8 w-8 shrink-0 text-brand-700" />
-            <p className="text-sm text-slate-700"><span className="font-semibold">2. Fingerprint.</span> After your PIN, touch your laptop's fingerprint sensor when prompted.</p>
+      ) : (
+        <div className="mt-4 flex flex-col items-center py-2">
+          <div className="relative flex h-32 w-32 items-center justify-center">
+            {stage === 'finger' && <>
+              <span className="animate-ripple absolute h-24 w-24 rounded-full bg-brand-200/60" />
+              <span className="animate-ripple absolute h-24 w-24 rounded-full bg-gold-200/60" style={{ animationDelay: '.9s' }} />
+            </>}
+            <span className={cx('relative flex h-24 w-24 items-center justify-center rounded-full shadow-lg ring-1', stage === 'done' ? 'bg-brand-50 text-brand-700 ring-brand-200' : 'bg-white text-brand-700 ring-slate-200')}>
+              {stage === 'done' ? <Check className="animate-pop h-12 w-12" strokeWidth={2.5} /> : <Fingerprint className="h-14 w-14 animate-pulse" strokeWidth={1.4} />}
+            </span>
           </div>
-        ) : (
-          <div>
-            <Label htmlFor="auth-otp">2. One-time password</Label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input id="auth-otp" inputMode="numeric" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))} className="pl-9 font-mono tracking-[0.4em]" placeholder="000000" disabled={!sent} />
-              </div>
-              <Button variant="secondary" onClick={send} icon={<MessageSquareText className="h-4 w-4" />}>{sent ? 'Resend' : 'Get code'}</Button>
-            </div>
-            <p className="mt-1.5 text-xs text-slate-500">No fingerprint is enrolled, so a one-time code is used instead.</p>
-          </div>
-        )}
-        {error && <Alert tone="red">{error}</Alert>}
-      </div>
+          <p className="mt-2 text-sm font-medium text-slate-700">{stage === 'done' ? 'Fingerprint confirmed. Releasing payment…' : 'Touch your fingerprint sensor now'}</p>
+        </div>
+      )}
+      {error && <div className="mt-4"><Alert tone="red">{error}</Alert></div>}
     </Modal>
   );
 }
