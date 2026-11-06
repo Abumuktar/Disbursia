@@ -10,7 +10,7 @@ import { Alert, Badge, Button, Card, Input, Modal, PageHeader, Pagination, Selec
 
 const PAGE = 40;
 const tone = (a: string): 'green' | 'yellow' | 'red' | 'gray' | 'blue' =>
-  /FAILED|REJECT|CANCEL/.test(a) ? 'red' : /SIGNED|COMPLETED|VERIFIED|AUTHORIZED/.test(a) ? 'green' : /OTP|SUBMITTED|ACCEPTED|EXCLUDED/.test(a) ? 'yellow' : /LOGIN|LOGOUT/.test(a) ? 'gray' : 'blue';
+  /FAILED|REJECT|CANCEL/.test(a) ? 'red' : /SIGNED|COMPLETED|VERIFIED|AUTHORIZED|FUNDED/.test(a) ? 'green' : /OTP|SUBMITTED|ACCEPTED|EXCLUDED/.test(a) ? 'yellow' : /LOGIN|LOGOUT/.test(a) ? 'gray' : 'blue';
 
 export default function AuditTrail() {
   const audit = useAppState((s) => s.audit);
@@ -106,7 +106,7 @@ export default function AuditTrail() {
                   <td><p className="text-[13px] font-medium text-slate-800">{e.actorName}</p><p className="text-[11px] capitalize text-slate-400">{e.role}</p></td>
                   <td><Badge tone={tone(e.action)}>{e.action.replace(/_/g, ' ')}</Badge></td>
                   <td className="max-w-[420px] truncate text-[13px] text-slate-600" title={e.summary}>{e.summary}</td>
-                  <td>{e.entity === 'batch' ? <Link onClick={(ev) => ev.stopPropagation()} to={`/batches/${e.entityId}`} className="font-mono text-xs text-brand-700 hover:underline">{refOf(e.entityId)}</Link> : <span className="text-xs text-slate-400">{e.entity}</span>}</td>
+                  <td>{e.entity === 'batch' && refOf(e.entityId) ? <Link onClick={(ev) => ev.stopPropagation()} to={`/batches/${e.entityId}`} className="font-mono text-xs text-brand-700 hover:underline">{refOf(e.entityId)}</Link> : <span className="text-xs text-slate-400">{e.entity}</span>}</td>
                   <td className="font-mono text-[11px] text-slate-400">{e.hash.slice(0, 10)}…</td>
                 </tr>
               ))}

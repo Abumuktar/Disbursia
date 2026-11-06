@@ -141,4 +141,6 @@ export interface AppState {
   audit: AuditEntry[];
   settings: Settings;
   sessionUserId: string | null;
+  /** Funding credits already applied to the source account */
+  appliedFunding?: string[];
 }

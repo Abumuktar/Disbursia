@@ -5,6 +5,7 @@ import App from './App';
 import { initStore } from './lib/store';
 import { seedState } from './lib/seed';
 import { restoreSession, resumeInFlight } from './lib/actions';
+import { applyFunding } from './lib/funding';
 
 const root = ReactDOM.createRoot(document.getElementById('root')!);
 root.render(
@@ -12,6 +13,7 @@ root.render(
 );
 
 initStore(seedState).then(() => {
+  applyFunding();
   restoreSession();
   resumeInFlight();
   root.render(<React.StrictMode><App /></React.StrictMode>);
