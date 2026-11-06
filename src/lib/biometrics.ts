@@ -32,7 +32,14 @@ export function loadFaceModels(): Promise<FaceApi> {
   return api;
 }
 
-export interface FaceReading { descriptor: Float32Array; score: number; box: { x: number; y: number; width: number; height: number } }
+export interface FaceReading {
+  descriptor: Float32Array;
+  score: number;
+  box: { x: number; y: number; width: number; height: number };
+  /** 68 facial landmarks in video pixel coordinates */
+  points: { x: number; y: number }[];
+  frame: { width: number; height: number };
+}
 
 export async function readFace(video: HTMLVideoElement): Promise<FaceReading | null> {
   const faceapi = await loadFaceModels();
@@ -43,7 +50,11 @@ export async function readFace(video: HTMLVideoElement): Promise<FaceReading | n
     .withFaceDescriptor();
   if (!r) return null;
   const b = r.detection.box;
-  return { descriptor: r.descriptor, score: r.detection.score, box: { x: b.x, y: b.y, width: b.width, height: b.height } };
+  return {
+    descriptor: r.descriptor, score: r.detection.score, box: { x: b.x, y: b.y, width: b.width, height: b.height },
+    points: r.landmarks.positions.map((pt) => ({ x: pt.x, y: pt.y })),
+    frame: { width: video.videoWidth, height: video.videoHeight },
+  };
 }
 
 export const FACE_MATCH_THRESHOLD = 0.5;

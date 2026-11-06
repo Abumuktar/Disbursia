@@ -20,8 +20,8 @@ export default function Login() {
   const admin = useAppState((s) => s.users[0]);
   const setup = !admin.security;
   const steps: Step[] = useMemo(() => setup
-    ? ['pin', 'face', 'fingerprint']
-    : [...(admin.security?.face ? ['face' as Step] : []), ...(admin.security?.passkey ? ['fingerprint' as Step] : []), 'pin'],
+    ? ['pin', 'fingerprint', 'face']
+    : [...(admin.security?.passkey ? ['fingerprint' as Step] : []), ...(admin.security?.face ? ['face' as Step] : []), 'pin'],
   [setup, admin.security]);
   const [index, setIndex] = useState(0);
   const [enrolled, setEnrolled] = useState<{ face?: number[]; passkey?: Passkey }>({});
@@ -29,11 +29,13 @@ export default function Login() {
   const [welcome, setWelcome] = useState(false);
   const step = steps[index];
 
-  const next = (factor?: string) => {
+  const next = (factor?: string, patch: { face?: number[]; passkey?: Passkey } = {}) => {
     const done = factor ? [...passed, factor] : passed;
+    const profile = { ...enrolled, ...patch };
     setPassed(done);
+    setEnrolled(profile);
     if (index + 1 < steps.length) { setIndex(index + 1); return; }
-    finish(done, enrolled);
+    finish(done, profile);
   };
 
   const finish = (factors: string[], profile: { face?: number[]; passkey?: Passkey }) => {
@@ -60,7 +62,7 @@ export default function Login() {
           <LogoPlate size="text-4xl" className="mt-12 rounded-2xl px-6 pb-2.5 pt-3.5" />
           <p className="mt-6 text-lg text-brand-100">Secure disbursement for the Government of Katsina State</p>
           <div className="mt-10 flex items-center gap-3">
-            {(['face', 'fingerprint', 'pin'] as Step[]).map((s, i) => {
+            {(['fingerprint', 'face', 'pin'] as Step[]).map((s, i) => {
               const I = META[s].icon;
               return (
                 <div key={s} className="flex items-center gap-3">
@@ -113,16 +115,15 @@ export default function Login() {
                 })}
               </ol>
 
-              <div className="mt-8 flex min-h-[380px] flex-col items-center">
+              <div className="mt-8 flex min-h-[440px] flex-col items-center">
                 {step === 'face' && (
                   <FaceStep
                     key={`face-${index}`}
                     mode={setup ? 'enroll' : 'verify'}
                     target={admin.security?.face}
                     onDone={(r) => {
-                      if (setup) setEnrolled((e) => ({ ...e, face: r.descriptor }));
-                      else recordFactor('face', true, `distance ${r.distance?.toFixed(2)}`);
-                      next('face');
+                      if (!setup) recordFactor('face', true, `distance ${r.distance?.toFixed(2)}`);
+                      next('face', setup ? { face: r.descriptor } : {});
                     }}
                     onFail={(reason) => { if (!setup) recordFactor('face', false, reason); }}
                     onSkip={setup ? () => next() : undefined}
@@ -135,15 +136,11 @@ export default function Login() {
                     passkey={admin.security?.passkey}
                     user={admin}
                     onDone={(pk) => {
-                      if (setup) {
-                        const profile = { ...enrolled, passkey: pk };
-                        setEnrolled(profile);
-                        setPassed((p) => [...p, 'fingerprint']);
-                        finish([...passed, 'fingerprint'], profile);
-                      } else { recordFactor('fingerprint', true); next('fingerprint'); }
+                      if (!setup) recordFactor('fingerprint', true);
+                      next('fingerprint', setup ? { passkey: pk } : {});
                     }}
                     onFail={(reason) => { if (!setup) recordFactor('fingerprint', false, reason); }}
-                    onSkip={setup ? () => finish(passed, enrolled) : undefined}
+                    onSkip={setup ? () => next() : undefined}
                   />
                 )}
                 {step === 'pin' && (
