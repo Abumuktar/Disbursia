@@ -144,12 +144,11 @@ function drawScan(canvas: HTMLCanvasElement, scan: Scan | null, phase: Phase, t:
   if (phaseT === 2 || ok) measure(pts[0], pts[16], `FW 1.000`, 10);
 }
 
-export function FaceStep({ mode, target, onDone, onFail, onSkip }: {
+export function FaceStep({ mode, target, onDone, onFail }: {
   mode: 'enroll' | 'verify';
   target?: number[];
   onDone: (result: { descriptor?: number[]; distance?: number }) => void;
   onFail?: (reason: string) => void;
-  onSkip?: () => void;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -292,7 +291,6 @@ export function FaceStep({ mode, target, onDone, onFail, onSkip }: {
       {phase === 'error' && (
         <div className="mt-3 flex flex-wrap justify-center gap-2">
           <button onClick={() => setAttempt((a) => a + 1)} className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-800"><RotateCcw className="h-4 w-4" /> Scan again</button>
-          {onSkip && <button onClick={onSkip} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-100">Continue without face</button>}
         </div>
       )}
       {phase !== 'error' && <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-400"><Camera className="h-3.5 w-3.5" /> Processed on this device only</p>}
@@ -311,28 +309,32 @@ function Readout({ label, value, on }: { label: string; value: string; on: boole
 
 // ---- Fingerprint ------------------------------------------------------------
 
-export function FingerprintStep({ mode, passkey, user, onDone, onFail, onSkip }: {
+export function FingerprintStep({ mode, passkey, user, onDone, onFail }: {
   mode: 'enroll' | 'verify';
   passkey?: Passkey;
   user: { id: string; name: string };
   onDone: (passkey?: Passkey) => void;
   onFail?: (reason: string) => void;
-  onSkip?: () => void;
 }) {
-  const [phase, setPhase] = useState<'idle' | 'waiting' | 'success' | 'error' | 'unavailable'>('idle');
-  const [msg, setMsg] = useState(mode === 'enroll' ? 'Register the fingerprint sensor on this laptop' : 'Touch your laptop\'s fingerprint sensor');
+  const [phase, setPhase] = useState<'checking' | 'idle' | 'waiting' | 'success' | 'error' | 'unavailable'>('checking');
+  const idleMsg = mode === 'enroll' ? 'Fingerprint is required. Register your laptop\'s fingerprint sensor.' : 'Touch your laptop\'s fingerprint sensor';
+  const [msg, setMsg] = useState('Checking fingerprint sensor…');
+  const [detail, setDetail] = useState('');
+  const [check, setCheck] = useState(0);
 
   useEffect(() => {
+    setPhase('checking'); setMsg('Checking fingerprint sensor…');
     fingerprintSupport().then((s) => {
       if (!s.secure) { setPhase('unavailable'); setMsg('Fingerprint needs a secure connection. Open Disbursia on https:// or localhost.'); }
-      else if (!s.api) { setPhase('unavailable'); setMsg('This browser does not support fingerprint sign-in. Use the latest Chrome, Edge or Safari.'); }
-      else if (!s.platform) { setPhase('unavailable'); setMsg(/Windows/.test(navigator.userAgent) ? 'Windows Hello is not ready. Make sure both the Windows Hello PIN and fingerprint are set up in Settings › Accounts › Sign-in options, then reload.' : 'No fingerprint sensor was found. Set up Touch ID or your device fingerprint, then reload.'); }
+      else if (!s.api) { setPhase('unavailable'); setMsg('This browser does not support fingerprint sign-in. Use the latest Chrome or Edge.'); }
+      else if (!s.platform) { setPhase('unavailable'); setMsg(/Windows/.test(navigator.userAgent) ? 'The browser cannot reach Windows Hello. Make sure Windows Hello fingerprint is set up, close other Windows Hello prompts, then press Check again.' : 'No fingerprint sensor was found. Set up Touch ID or your device fingerprint, then press Check again.'); }
+      else { setPhase('idle'); setMsg(idleMsg); }
     });
-  }, [mode]);
+  }, [check, idleMsg]);
 
   const run = async () => {
-    setPhase('waiting');
-    setMsg(mode === 'enroll' ? 'Follow your device prompt and touch the sensor' : 'Waiting for your fingerprint…');
+    setPhase('waiting'); setDetail('');
+    setMsg(mode === 'enroll' ? 'Follow the Windows Hello prompt and touch the sensor' : 'Waiting for your fingerprint…');
     try {
       if (mode === 'enroll') {
         const pk = await registerFingerprint({ id: user.id, name: user.name.toLowerCase().replace(/\s+/g, '.'), displayName: user.name });
@@ -348,6 +350,7 @@ export function FingerprintStep({ mode, passkey, user, onDone, onFail, onSkip }:
       }
     } catch (e) {
       setPhase('error'); setMsg(biometricError(e));
+      setDetail(e instanceof DOMException ? `${e.name}: ${e.message}` : e instanceof Error ? e.message : '');
       onFail?.(biometricError(e));
     }
   };
@@ -364,17 +367,18 @@ export function FingerprintStep({ mode, passkey, user, onDone, onFail, onSkip }:
         )}
         <button
           onClick={run}
-          disabled={phase === 'waiting' || phase === 'success' || phase === 'unavailable'}
+          disabled={phase !== 'idle' && phase !== 'error'}
           className={cx('relative flex h-40 w-40 items-center justify-center rounded-full shadow-xl ring-1 transition hover:scale-[1.03] disabled:hover:scale-100', tone)}
           aria-label={mode === 'enroll' ? 'Register fingerprint' : 'Scan fingerprint'}
         >
-          {phase === 'success' ? <Check className="animate-pop h-16 w-16" strokeWidth={2.5} /> : <Fingerprint className={cx('h-20 w-20', phase === 'waiting' && 'animate-pulse')} strokeWidth={1.4} />}
+          {phase === 'success' ? <Check className="animate-pop h-16 w-16" strokeWidth={2.5} /> : phase === 'checking' ? <Loader2 className="h-12 w-12 animate-spin" /> : <Fingerprint className={cx('h-20 w-20', phase === 'waiting' && 'animate-pulse')} strokeWidth={1.4} />}
         </button>
       </div>
       <StatusLine phase={phase === 'success' ? 'success' : phase === 'error' || phase === 'unavailable' ? 'error' : 'scanning'}>{msg}</StatusLine>
+      {detail && <p className="mt-1 max-w-xs text-center font-mono text-[10px] text-slate-400">{detail}</p>}
       {phase === 'idle' && <button onClick={run} className="mt-4 rounded-xl bg-brand-700 px-6 py-2.5 text-sm font-semibold text-white hover:bg-brand-800">{mode === 'enroll' ? 'Register fingerprint' : 'Scan fingerprint'}</button>}
       {phase === 'error' && <button onClick={run} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-brand-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-800"><RotateCcw className="h-4 w-4" /> Try again</button>}
-      {onSkip && (phase === 'unavailable' || phase === 'error') && <button onClick={onSkip} className="mt-2 rounded-xl px-4 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100">Continue without fingerprint</button>}
+      {phase === 'unavailable' && <button onClick={() => setCheck((c) => c + 1)} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-brand-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-800"><RotateCcw className="h-4 w-4" /> Check again</button>}
     </div>
   );
 }

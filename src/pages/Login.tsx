@@ -18,16 +18,27 @@ const META: Record<Step, { label: string; icon: typeof ScanFace; title: string }
 
 export default function Login() {
   const admin = useAppState((s) => s.users[0]);
-  const setup = !admin.security;
-  const steps: Step[] = useMemo(() => setup
-    ? ['pin', 'fingerprint', 'face']
-    : [...(admin.security?.passkey ? ['fingerprint' as Step] : []), ...(admin.security?.face ? ['face' as Step] : []), 'pin'],
-  [setup, admin.security]);
+  const sec = admin.security;
+  const hasFp = !!sec?.passkey, hasFace = !!sec?.face;
+  /** All three factors are mandatory. Anything not yet enrolled is enrolled only after the PIN (and any enrolled biometric) is proven. */
+  const setup = !hasFp || !hasFace;
+  const plan: { step: Step; mode: 'enroll' | 'verify' }[] = useMemo(() => {
+    if (!setup) return [{ step: 'fingerprint', mode: 'verify' }, { step: 'face', mode: 'verify' }, { step: 'pin', mode: 'verify' }];
+    return [
+      { step: 'pin', mode: 'verify' },
+      ...(hasFp ? [{ step: 'fingerprint' as Step, mode: 'verify' as const }] : []),
+      ...(hasFace ? [{ step: 'face' as Step, mode: 'verify' as const }] : []),
+      ...(!hasFp ? [{ step: 'fingerprint' as Step, mode: 'enroll' as const }] : []),
+      ...(!hasFace ? [{ step: 'face' as Step, mode: 'enroll' as const }] : []),
+    ];
+  }, [setup, hasFp, hasFace]);
+  const steps = plan.map((x) => x.step);
   const [index, setIndex] = useState(0);
   const [enrolled, setEnrolled] = useState<{ face?: number[]; passkey?: Passkey }>({});
   const [passed, setPassed] = useState<string[]>([]);
   const [welcome, setWelcome] = useState(false);
   const step = steps[index];
+  const mode = plan[index]?.mode ?? 'verify';
 
   const next = (factor?: string, patch: { face?: number[]; passkey?: Passkey } = {}) => {
     const done = factor ? [...passed, factor] : passed;
@@ -39,7 +50,7 @@ export default function Login() {
   };
 
   const finish = (factors: string[], profile: { face?: number[]; passkey?: Passkey }) => {
-    if (setup) enrollSecurity(profile);
+    if (setup) enrollSecurity({ face: profile.face ?? sec?.face, passkey: profile.passkey ?? sec?.passkey });
     setWelcome(true);
     setTimeout(() => openSession(factors), 900);
   };
@@ -95,7 +106,7 @@ export default function Login() {
               <div className="flex flex-col items-center text-center">
                 <span className="flex h-14 w-14 items-center justify-center rounded-full bg-gold-400 text-lg font-bold text-brand-950 shadow-sm">{initials}</span>
                 <h1 className="mt-4 text-xl font-bold text-slate-900">{admin.name}</h1>
-                <p className="text-sm text-slate-500">{setup ? 'Set up secure sign-in' : 'Administrator'}</p>
+                <p className="text-sm text-slate-500">{!sec ? 'Set up secure sign-in' : setup ? 'Fingerprint and face are required. Finish setup to continue.' : 'Administrator'}</p>
               </div>
 
               <ol className="mt-8 flex items-center justify-center gap-2" aria-label="Sign-in steps">
@@ -119,34 +130,32 @@ export default function Login() {
                 {step === 'face' && (
                   <FaceStep
                     key={`face-${index}`}
-                    mode={setup ? 'enroll' : 'verify'}
-                    target={admin.security?.face}
+                    mode={mode}
+                    target={sec?.face}
                     onDone={(r) => {
-                      if (!setup) recordFactor('face', true, `distance ${r.distance?.toFixed(2)}`);
-                      next('face', setup ? { face: r.descriptor } : {});
+                      if (mode === 'verify') recordFactor('face', true, `distance ${r.distance?.toFixed(2)}`);
+                      next('face', mode === 'enroll' ? { face: r.descriptor } : {});
                     }}
-                    onFail={(reason) => { if (!setup) recordFactor('face', false, reason); }}
-                    onSkip={setup ? () => next() : undefined}
+                    onFail={(reason) => { if (mode === 'verify') recordFactor('face', false, reason); }}
                   />
                 )}
                 {step === 'fingerprint' && (
                   <FingerprintStep
                     key={`fp-${index}`}
-                    mode={setup ? 'enroll' : 'verify'}
-                    passkey={admin.security?.passkey}
+                    mode={mode}
+                    passkey={sec?.passkey}
                     user={admin}
                     onDone={(pk) => {
-                      if (!setup) recordFactor('fingerprint', true);
-                      next('fingerprint', setup ? { passkey: pk } : {});
+                      if (mode === 'verify') recordFactor('fingerprint', true);
+                      next('fingerprint', mode === 'enroll' ? { passkey: pk } : {});
                     }}
-                    onFail={(reason) => { if (!setup) recordFactor('fingerprint', false, reason); }}
-                    onSkip={setup ? () => next() : undefined}
+                    onFail={(reason) => { if (mode === 'verify') recordFactor('fingerprint', false, reason); }}
                   />
                 )}
                 {step === 'pin' && (
                   <PinStep
                     key={`pin-${index}`}
-                    label={setup ? 'Enter your PIN to begin setup' : 'Enter your 6-digit PIN'}
+                    label={setup ? 'Enter your PIN to continue setup' : 'Enter your 6-digit PIN'}
                     onSubmit={(pin) => {
                       try { checkAdminPin(pin); } catch (e) { throw new Error(e instanceof ActionError ? e.message : 'Incorrect PIN'); }
                       next('PIN');
