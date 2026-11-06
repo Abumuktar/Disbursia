@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { -webkit-font-smoothing: antialiased; }
+  body { @apply bg-slate-50 text-slate-800; font-feature-settings: 'cv11', 'ss01'; }
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+.table-base { @apply w-full text-left text-sm; }
+.table-base thead th { @apply sticky top-0 z-[1] whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500; }
+.table-base tbody td { @apply whitespace-nowrap border-b border-slate-100 px-4 py-2.5 align-middle; }
+.table-base tbody tr:hover td { @apply bg-slate-50/70; }
+
+.pattern-grid {
+  background-image: radial-gradient(rgba(230, 179, 37, 0.18) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+@media print {
+  @page { size: A4; margin: 12mm; }
+  body { background: #fff !important; }
+  .no-print { display: none !important; }
+  .print-area { box-shadow: none !important; border: none !important; margin: 0 !important; max-width: none !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+/* ---- Landing page motion ---- */
+.reveal { opacity: 0; transform: translateY(18px); transition: opacity .8s cubic-bezier(.2,.7,.2,1), transform .8s cubic-bezier(.2,.7,.2,1); }
+.reveal.in { opacity: 1; transform: none; }
+@keyframes float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-10px) } }
+@keyframes drift { 0%,100% { transform: translate(0,0) scale(1) } 50% { transform: translate(30px,-20px) scale(1.08) } }
+@keyframes rowIn { from { opacity: 0; transform: translateX(-8px) } to { opacity: 1; transform: none } }
+@keyframes fill { from { width: 0 } to { width: var(--w, 100%) } }
+@keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(230,179,37,.55) } 100% { box-shadow: 0 0 0 14px rgba(230,179,37,0) } }
+@keyframes dash { to { stroke-dashoffset: 0 } }
+.animate-float { animation: float 6s ease-in-out infinite; }
+.animate-drift { animation: drift 14s ease-in-out infinite; }
+.animate-row { animation: rowIn .5s ease-out both; }
+.animate-pulse-ring { animation: pulse-ring 2s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .animate-float, .animate-drift, .animate-row, .animate-pulse-ring { animation: none; }
+}
