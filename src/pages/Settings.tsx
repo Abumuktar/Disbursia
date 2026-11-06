@@ -101,6 +101,11 @@ function SecurityCard() {
           <Check ok={support?.api} label="Browser supports fingerprint" />
           <Check ok={support?.platform} label="Sensor or Windows Hello ready" />
         </ul>
+        {support && support.secure && support.api && !support.platform && (
+          <div className="mt-3"><Alert tone="yellow" title="Windows Hello is not ready">The browser can only use your fingerprint when Windows Hello is fully set up, including the Windows Hello PIN. Open Windows Settings › Accounts › Sign-in options, fix or reset the PIN, then reload this page.</Alert></div>
+        )}
+        <ul className="hidden">
+        </ul>
         {test.msg && (
           <div className="mt-3">
             {test.state === 'running' ? <p className="text-sm text-slate-600">{test.msg}</p> : <Alert tone={test.state === 'ok' ? 'green' : 'red'}>{test.msg}</Alert>}

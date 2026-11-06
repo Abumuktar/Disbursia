@@ -152,7 +152,7 @@ export function FingerprintStep({ mode, passkey, user, onDone, onFail, onSkip }:
     fingerprintSupport().then((s) => {
       if (!s.secure) { setPhase('unavailable'); setMsg('Fingerprint needs a secure connection. Open Disbursia on https:// or localhost.'); }
       else if (!s.api) { setPhase('unavailable'); setMsg('This browser does not support fingerprint sign-in. Use the latest Chrome, Edge or Safari.'); }
-      else if (!s.platform) { setPhase('unavailable'); setMsg('No fingerprint sensor was found. Set up Windows Hello or Touch ID on this laptop, then reload.'); }
+      else if (!s.platform) { setPhase('unavailable'); setMsg(/Windows/.test(navigator.userAgent) ? 'Windows Hello is not ready. Make sure both the Windows Hello PIN and fingerprint are set up in Settings › Accounts › Sign-in options, then reload.' : 'No fingerprint sensor was found. Set up Touch ID or your device fingerprint, then reload.'); }
     });
   }, [mode]);
 
