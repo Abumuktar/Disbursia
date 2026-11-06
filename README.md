@@ -42,3 +42,10 @@ Camera and fingerprint need a secure origin: `localhost` or HTTPS.
 React 18, TypeScript, Vite, Tailwind CSS, React Router, lucide-react, PapaParse, read-excel-file, idb-keyval.
 
 - **Biometrics run in the browser.** Face matching and the fingerprint key check happen on the device. In production, store the face template and public key on the server and issue sign-in challenges from there.
+
+## Deploying on Vercel
+
+Import the repo in Vercel; `vercel.json` sets the build (`npm run build` → `dist`) and allows camera and fingerprint (WebAuthn) on the site.
+
+- Always open the **production URL** (or your custom domain). Fingerprint keys and saved data belong to one exact web address, so a preview URL such as `disbursia-git-…vercel.app` won't recognise a fingerprint enrolled on the production URL.
+- If you move to a new domain, sign in there and use **Settings → Re-enroll face & fingerprint**.
