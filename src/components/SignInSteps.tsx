@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Check, Fingerprint, Loader2, RotateCcw, X } from 'lucide-react';
 import {
-  FACE_MATCH_THRESHOLD, averageDescriptor, biometricError, faceDistance, fingerprintAvailable, loadFaceModels, readFace,
+  FACE_MATCH_THRESHOLD, averageDescriptor, biometricError, faceDistance, fingerprintSupport, loadFaceModels, readFace,
   registerFingerprint, startCamera, stopCamera, verifyFingerprint, type Passkey,
 } from '../lib/biometrics';
+import { updateFingerprintCounter } from '../lib/actions';
 import { cx } from './ui';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -148,7 +149,11 @@ export function FingerprintStep({ mode, passkey, user, onDone, onFail, onSkip }:
   const [msg, setMsg] = useState(mode === 'enroll' ? 'Register the fingerprint sensor on this laptop' : 'Touch your laptop\'s fingerprint sensor');
 
   useEffect(() => {
-    if (mode === 'enroll') fingerprintAvailable().then((ok) => { if (!ok) { setPhase('unavailable'); setMsg('No fingerprint sensor (Windows Hello or Touch ID) was found on this device.'); } });
+    fingerprintSupport().then((s) => {
+      if (!s.secure) { setPhase('unavailable'); setMsg('Fingerprint needs a secure connection. Open Disbursia on https:// or localhost.'); }
+      else if (!s.api) { setPhase('unavailable'); setMsg('This browser does not support fingerprint sign-in. Use the latest Chrome, Edge or Safari.'); }
+      else if (!s.platform) { setPhase('unavailable'); setMsg('No fingerprint sensor was found. Set up Windows Hello or Touch ID on this laptop, then reload.'); }
+    });
   }, [mode]);
 
   const run = async () => {
@@ -161,7 +166,8 @@ export function FingerprintStep({ mode, passkey, user, onDone, onFail, onSkip }:
         await sleep(800);
         onDone(pk);
       } else {
-        await verifyFingerprint(passkey!);
+        const { signCount } = await verifyFingerprint(passkey!);
+        updateFingerprintCounter(signCount);
         setPhase('success'); setMsg('Fingerprint verified');
         await sleep(800);
         onDone();

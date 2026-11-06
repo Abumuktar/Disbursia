@@ -376,3 +376,18 @@ export function createProgramme(input: { code: string; name: string; agency: str
     { code: p.code, name: p.name, enrolled: p.enrolled, standardAmount: p.standardAmount });
   return p;
 }
+
+/** Persist the fingerprint signature counter after a successful check (clone detection). */
+export function updateFingerprintCounter(signCount: number) {
+  setState((s) => ({ ...s, users: s.users.map((x, i) => (i === 0 && x.security?.passkey ? { ...x, security: { ...x.security, passkey: { ...x.security.passkey, signCount } } } : x)) }));
+}
+
+export function setFingerprint(pin: string, passkey: SecurityProfile['passkey']) {
+  const u = requireUser();
+  if (!pinOk(u, pin)) {
+    appendAudit(actor(u), 'AUTH_FAILED', 'session', u.id, 'Fingerprint setup rejected: incorrect PIN');
+    throw new ActionError('Incorrect PIN. The attempt has been logged.');
+  }
+  setState((s) => ({ ...s, users: s.users.map((x) => (x.id === u.id ? { ...x, security: { ...(x.security ?? { enrolledAt: new Date().toISOString() }), passkey } } : x)) }));
+  appendAudit(actor(u), 'FINGERPRINT_ENROLLED', 'session', u.id, 'Laptop fingerprint registered for sign-in and payment authorization');
+}

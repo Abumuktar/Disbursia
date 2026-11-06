@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Fingerprint, KeyRound, Lock, MessageSquareText, ShieldCheck } from 'lucide-react';
 import type { Batch } from '../lib/types';
-import { ActionError, authorizeBatch, logEvent, rejectBatch, requestOtp, retryFailed } from '../lib/actions';
+import { ActionError, authorizeBatch, logEvent, rejectBatch, requestOtp, retryFailed, updateFingerprintCounter } from '../lib/actions';
 import { biometricError, verifyFingerprint } from '../lib/biometrics';
 import { amountWords, naira, num } from '../lib/format';
 import { batchSummary, useLookups, useMe } from '../lib/hooks';
@@ -42,7 +42,8 @@ export function AuthorizeModal({ batch, open, onClose, mode = 'authorize' }: { b
     setError(''); setBusy(true);
     try {
       if (passkey) {
-        await verifyFingerprint(passkey);
+        const { signCount } = await verifyFingerprint(passkey);
+        updateFingerprintCounter(signCount);
         if (mode === 'retry') retryFailed(batch.id, pin, { kind: 'fingerprint' }); else authorizeBatch(batch.id, pin, { kind: 'fingerprint' });
       } else {
         await new Promise((r) => setTimeout(r, 400));

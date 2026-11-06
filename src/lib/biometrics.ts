@@ -74,7 +74,7 @@ export function stopCamera(stream: MediaStream | null) {
 
 // ---- WebAuthn (fingerprint) -------------------------------------------------
 
-export interface Passkey { id: string; publicKey: string; alg: number }
+export interface Passkey { id: string; publicKey: string; alg: number; signCount?: number }
 
 const b64u = (buf: ArrayBuffer | Uint8Array) => {
   const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
@@ -87,38 +87,110 @@ const fromB64u = (s: string) => {
   return Uint8Array.from(bin, (c) => c.charCodeAt(0));
 };
 const randomChallenge = () => crypto.getRandomValues(new Uint8Array(32));
+const sha256Bytes = async (data: BufferSource) => new Uint8Array(await crypto.subtle.digest('SHA-256', data));
+const equalBytes = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((v, i) => v === b[i]);
 
-export async function fingerprintAvailable(): Promise<boolean> {
-  try {
-    return !!window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-  } catch { return false; }
+export interface FingerprintSupport { secure: boolean; api: boolean; platform: boolean }
+
+export async function fingerprintSupport(): Promise<FingerprintSupport> {
+  const secure = window.isSecureContext;
+  const api = !!window.PublicKeyCredential && !!navigator.credentials;
+  let platform = false;
+  if (secure && api) {
+    try { platform = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable(); } catch { platform = false; }
+  }
+  return { secure, api, platform };
 }
 
-export async function registerFingerprint(user: { id: string; name: string; displayName: string }): Promise<Passkey> {
+export async function fingerprintAvailable(): Promise<boolean> {
+  return (await fingerprintSupport()).platform;
+}
+
+function assertUsable() {
+  if (!window.isSecureContext) throw new Error('The fingerprint sensor only works over a secure connection. Open Disbursia on https:// or localhost.');
+  if (!window.PublicKeyCredential || !navigator.credentials) throw new Error('This browser does not support fingerprint sign-in. Use the latest Chrome, Edge or Safari.');
+}
+
+// Minimal CBOR decoder, enough for WebAuthn attestation objects and COSE keys.
+function decodeCbor(bytes: Uint8Array): unknown {
+  let pos = 0;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const readLen = (info: number): number => {
+    if (info < 24) return info;
+    if (info === 24) return bytes[pos++];
+    if (info === 25) { const v = view.getUint16(pos); pos += 2; return v; }
+    if (info === 26) { const v = view.getUint32(pos); pos += 4; return v; }
+    if (info === 27) { const v = Number(view.getBigUint64(pos)); pos += 8; return v; }
+    throw new Error('Unsupported CBOR length');
+  };
+  const item = (): unknown => {
+    const ib = bytes[pos++];
+    const major = ib >> 5, info = ib & 31;
+    switch (major) {
+      case 0: return readLen(info);
+      case 1: return -1 - readLen(info);
+      case 2: { const n = readLen(info); const v = bytes.slice(pos, pos + n); pos += n; return v; }
+      case 3: { const n = readLen(info); const v = new TextDecoder().decode(bytes.slice(pos, pos + n)); pos += n; return v; }
+      case 4: { const n = readLen(info); return Array.from({ length: n }, item); }
+      case 5: { const n = readLen(info); const m = new Map<unknown, unknown>(); for (let i = 0; i < n; i++) { const k = item(); m.set(k, item()); } return m; }
+      case 7: return info === 20 ? false : info === 21 ? true : null;
+      default: throw new Error('Unsupported CBOR item');
+    }
+  };
+  return item();
+}
+
+/** Extract the credential public key (SPKI) from the attestation object when getPublicKey() is unavailable. */
+async function publicKeyFromAttestation(attestationObject: ArrayBuffer): Promise<{ spki: ArrayBuffer; alg: number }> {
+  const att = decodeCbor(new Uint8Array(attestationObject)) as Map<string, unknown>;
+  const authData = att.get('authData') as Uint8Array;
+  if (!(authData[32] & 0x40)) throw new Error('The device did not return a fingerprint key.');
+  const credLen = (authData[53] << 8) | authData[54];
+  const cose = decodeCbor(authData.slice(55 + credLen)) as Map<number, unknown>;
+  const alg = cose.get(3) as number;
+  let jwk: JsonWebKey, params: EcKeyImportParams | RsaHashedImportParams;
+  if (cose.get(1) === 2) {
+    jwk = { kty: 'EC', crv: 'P-256', x: b64u(cose.get(-2) as Uint8Array), y: b64u(cose.get(-3) as Uint8Array), ext: true };
+    params = { name: 'ECDSA', namedCurve: 'P-256' };
+  } else if (cose.get(1) === 3) {
+    jwk = { kty: 'RSA', n: b64u(cose.get(-1) as Uint8Array), e: b64u(cose.get(-2) as Uint8Array), alg: 'RS256', ext: true };
+    params = { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' };
+  } else throw new Error('Unsupported fingerprint key type.');
+  const key = await crypto.subtle.importKey('jwk', jwk, params, true, ['verify']);
+  return { spki: await crypto.subtle.exportKey('spki', key), alg };
+}
+
+export async function registerFingerprint(user: { id: string; name: string; displayName: string }, existing?: Passkey): Promise<Passkey> {
+  assertUsable();
   const cred = await navigator.credentials.create({
     publicKey: {
       challenge: randomChallenge(),
-      rp: { name: 'Disbursia · Katsina State' },
+      rp: { name: 'Disbursia · Katsina State', id: location.hostname },
       user: { id: new TextEncoder().encode(user.id), name: user.name, displayName: user.displayName },
       pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
       authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'preferred' },
+      excludeCredentials: existing ? [{ type: 'public-key', id: fromB64u(existing.id) }] : [],
       timeout: 60000,
       attestation: 'none',
     },
   }) as PublicKeyCredential | null;
   if (!cred) throw new Error('Fingerprint registration was cancelled.');
   const res = cred.response as AuthenticatorAttestationResponse;
-  const spki = res.getPublicKey?.();
-  const alg = res.getPublicKeyAlgorithm?.();
-  if (!spki || alg === undefined) throw new Error('This browser cannot export the fingerprint key. Update your browser and try again.');
-  return { id: b64u(cred.rawId), publicKey: b64u(spki), alg };
+  const clientData = JSON.parse(new TextDecoder().decode(res.clientDataJSON));
+  if (clientData.type !== 'webauthn.create' || clientData.origin !== location.origin) throw new Error('Fingerprint registration did not come from this site.');
+  let spki: ArrayBuffer | null = null;
+  let alg: number | undefined;
+  try { spki = res.getPublicKey?.() ?? null; alg = res.getPublicKeyAlgorithm?.(); } catch { spki = null; }
+  if (!spki || alg === undefined) ({ spki, alg } = await publicKeyFromAttestation(res.attestationObject));
+  return { id: b64u(cred.rawId), publicKey: b64u(spki), alg, signCount: 0 };
 }
 
 /** DER ECDSA signature -> raw r||s (64 bytes) for WebCrypto. */
 function derToRaw(der: Uint8Array): Uint8Array {
   let i = 2;
+  if (der[1] & 0x80) i += der[1] & 0x7f;
   const read = () => {
-    if (der[i] !== 0x02) throw new Error('bad signature');
+    if (der[i] !== 0x02) throw new Error('Malformed fingerprint signature.');
     const len = der[i + 1];
     let v = der.slice(i + 2, i + 2 + len);
     i += 2 + len;
@@ -133,25 +205,33 @@ function derToRaw(der: Uint8Array): Uint8Array {
   return raw;
 }
 
-export async function verifyFingerprint(passkey: Passkey): Promise<void> {
+/** Prompts for the fingerprint and verifies the signed response. Returns the new signature counter. */
+export async function verifyFingerprint(passkey: Passkey): Promise<{ signCount: number }> {
+  assertUsable();
   const challenge = randomChallenge();
   const cred = await navigator.credentials.get({
     publicKey: {
       challenge,
-      allowCredentials: [{ type: 'public-key', id: fromB64u(passkey.id), transports: ['internal'] }],
+      rpId: location.hostname,
+      allowCredentials: [{ type: 'public-key', id: fromB64u(passkey.id), transports: ['internal', 'hybrid'] }],
       userVerification: 'required',
       timeout: 60000,
     },
   }) as PublicKeyCredential | null;
   if (!cred) throw new Error('Fingerprint check was cancelled.');
+  if (b64u(cred.rawId) !== passkey.id) throw new Error('A different fingerprint key answered. Use the laptop you enrolled.');
   const res = cred.response as AuthenticatorAssertionResponse;
   const clientData = JSON.parse(new TextDecoder().decode(res.clientDataJSON));
   if (clientData.type !== 'webauthn.get' || clientData.challenge !== b64u(challenge) || clientData.origin !== location.origin) {
     throw new Error('Fingerprint response did not match this sign-in.');
   }
   const authData = new Uint8Array(res.authenticatorData);
+  if (!equalBytes(authData.slice(0, 32), await sha256Bytes(new TextEncoder().encode(location.hostname)))) throw new Error('Fingerprint response was issued for a different site.');
+  if (!(authData[32] & 0x01)) throw new Error('The sensor did not register a touch.');
   if (!(authData[32] & 0x04)) throw new Error('The device did not confirm your fingerprint.');
-  const clientHash = new Uint8Array(await crypto.subtle.digest('SHA-256', res.clientDataJSON));
+  const signCount = new DataView(authData.buffer, authData.byteOffset).getUint32(33);
+  if (passkey.signCount && signCount > 0 && signCount <= passkey.signCount) throw new Error('This fingerprint key may have been copied. Re-enroll your fingerprint.');
+  const clientHash = await sha256Bytes(res.clientDataJSON);
   const signed = new Uint8Array(authData.length + clientHash.length);
   signed.set(authData); signed.set(clientHash, authData.length);
   const spki = fromB64u(passkey.publicKey);
@@ -164,15 +244,18 @@ export async function verifyFingerprint(passkey: Passkey): Promise<void> {
     ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, new Uint8Array(res.signature), signed);
   }
   if (!ok) throw new Error('Fingerprint signature could not be verified.');
+  return { signCount };
 }
 
 export function biometricError(e: unknown): string {
   if (e instanceof DOMException) {
-    if (e.name === 'NotAllowedError') return 'The request was cancelled or timed out. Try again.';
+    if (e.name === 'NotAllowedError') return 'The fingerprint prompt was cancelled or timed out. Try again and touch the sensor when asked.';
     if (e.name === 'NotFoundError') return 'No camera or fingerprint sensor was found on this device.';
     if (e.name === 'NotReadableError') return 'The camera is in use by another app.';
-    if (e.name === 'SecurityError') return 'Biometrics need a secure (HTTPS) connection.';
-    if (e.name === 'InvalidStateError') return 'This fingerprint is already registered on this device.';
+    if (e.name === 'SecurityError') return 'Biometrics need a secure connection. Open Disbursia on https:// or localhost.';
+    if (e.name === 'InvalidStateError') return 'This laptop already has a Disbursia fingerprint registered. Use Test fingerprint, or re-enroll from Settings.';
+    if (e.name === 'NotSupportedError') return 'This device cannot create a fingerprint key. Check that Windows Hello or Touch ID is set up.';
+    if (e.name === 'AbortError') return 'The fingerprint request was interrupted. Try again.';
   }
   return e instanceof Error ? e.message : 'Something went wrong. Try again.';
 }

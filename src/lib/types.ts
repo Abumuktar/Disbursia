@@ -4,7 +4,7 @@ export interface SecurityProfile {
   /** 128-number face descriptor captured at enrollment */
   face?: number[];
   /** WebAuthn platform credential (laptop fingerprint) */
-  passkey?: { id: string; publicKey: string; alg: number };
+  passkey?: { id: string; publicKey: string; alg: number; signCount?: number };
   enrolledAt: string;
 }
 
