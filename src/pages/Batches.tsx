@@ -26,21 +26,44 @@ export default function Batches() {
         actions={me.role === 'officer' && <Link to="/disburse"><Button icon={<Send className="h-4 w-4" />}>New disbursement</Button></Link>} />
       <Card>
         <div className="flex flex-wrap gap-3 border-b border-slate-100 p-4">
-          <div className="relative min-w-[220px] flex-1">
+          <div className="relative w-full sm:w-auto sm:min-w-[220px] sm:flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search reference or narration" className="pl-9" />
           </div>
-          <Select value={prog} onChange={(e) => setProg(e.target.value)} className="w-auto" aria-label="Programme">
+          <Select value={prog} onChange={(e) => setProg(e.target.value)} className="w-full sm:w-auto" aria-label="Programme">
             <option value="">All programmes</option>
             {programmes.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </Select>
-          <Select value={status} onChange={(e) => setStatus(e.target.value as BatchStatus | '')} className="w-auto" aria-label="Status">
+          <Select value={status} onChange={(e) => setStatus(e.target.value as BatchStatus | '')} className="w-full sm:w-auto" aria-label="Status">
             <option value="">All statuses</option>
             {(Object.keys(BATCH_STATUS) as BatchStatus[]).map((s) => <option key={s} value={s}>{BATCH_STATUS[s].label}</option>)}
           </Select>
         </div>
-        {list.length === 0 ? <Empty icon={<FileStack className="h-5 w-5" />} title="No batches match these filters" /> : (
-          <div className="overflow-x-auto">
+        {list.length === 0 ? <Empty icon={<FileStack className="h-5 w-5" />} title="No batches match these filters" /> : (<>
+          <ul className="divide-y divide-slate-100 md:hidden">
+            {list.map((b) => {
+              const c = batchSummary(b);
+              const paid = c.success > 0;
+              return (
+                <li key={b.id}>
+                  <Link to={`/batches/${b.id}`} className="block px-4 py-3.5 active:bg-slate-50">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-900">{programme(b.programmeId).name}</p>
+                        <p className="truncate font-mono text-xs text-brand-700">{b.reference}</p>
+                      </div>
+                      <p className="shrink-0 text-sm font-semibold tabular text-slate-900">{naira(paid ? c.paidAmount : c.includedAmount)}</p>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <BatchStatusBadge status={b.status} />
+                      <span className="text-xs text-slate-500">{num(paid ? c.success : c.total)} {paid ? 'credited' : 'rows'} · {b.period}</span>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="hidden overflow-x-auto md:block">
             <table className="table-base">
               <thead><tr><th>Reference</th><th>Programme</th><th>Period</th><th className="text-right">Rows</th><th className="text-right">Credited</th><th className="text-right">Amount</th><th>Status</th><th>Prepared by</th></tr></thead>
               <tbody>
@@ -63,7 +86,7 @@ export default function Batches() {
               </tbody>
             </table>
           </div>
-        )}
+        </>)}
       </Card>
     </>
   );

@@ -4,7 +4,7 @@ import type { AppState, AuditEntry, Role } from './types';
 import { sha256 } from './sha256';
 
 const KEY = 'disbursia-state';
-export const STATE_VERSION = 5;
+export const STATE_VERSION = 6;
 export const GENESIS = '0'.repeat(64);
 
 let state: AppState | null = null;

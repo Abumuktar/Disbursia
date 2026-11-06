@@ -7,7 +7,7 @@ import { naira } from '../lib/format';
 import { bankShort } from '../lib/banks';
 import type { Role } from '../lib/types';
 import { Crest } from './Crest';
-import { LogoPlate } from './Wordmark';
+import { LogoPlate, Wordmark } from './Wordmark';
 import { cx } from './ui';
 
 const NAV: { to: string; label: string; icon: typeof LayoutDashboard; roles?: Role[] }[] = [
@@ -87,7 +87,8 @@ export function Layout() {
       <div className="lg:pl-64">
         <header className="no-print sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-6">
           <button className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100 lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu"><Menu className="h-5 w-5" /></button>
-          <div className="flex min-w-0 items-center gap-2 text-sm">
+          <Wordmark className="text-xl lg:hidden" />
+          <div className="hidden min-w-0 items-center gap-2 text-sm sm:flex">
             <span className="hidden font-semibold text-brand-700 sm:inline">Government of Katsina State</span>
             <span className="hidden text-slate-300 sm:inline">/</span>
             <span className="truncate text-slate-500">{user.title}</span>

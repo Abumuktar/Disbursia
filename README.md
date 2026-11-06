@@ -33,7 +33,7 @@ The OTP is shown as a simulated SMS in the top-right corner.
 
 - **Bank integration is simulated.** `src/lib/nibss.ts` stands in for the NIBSS Name Enquiry and NIP Funds Transfer APIs. Its responses are deterministic, so demos are repeatable. To go live, replace these two functions with calls through the sponsoring bank's gateway, and move state, PIN checks, OTP delivery and the audit chain to a server.
 - **Data is stored in the browser** (IndexedDB) for this prototype. Use *Reset demo data* on the sign-in page to start again.
-- **Source account number** is a valid-format placeholder (`0087145266`). Set the real Sterling Bank NUBAN in `SOURCE_ACCOUNT` in `src/lib/seed.ts`.
+- **Source account**: Abucore Enterprises, Sterling Bank, `0147716203`, with an opening balance of ₦18,000,000.00 (`SOURCE_ACCOUNT` and `OPENING_BALANCE` in `src/lib/seed.ts`).
 - **State crest**: put the official artwork at `public/katsina-crest.png`. Until then, a drawn green-and-gold seal is shown. The Disbursia logo is rendered in code (`src/components/Wordmark.tsx`).
 
 ## Stack

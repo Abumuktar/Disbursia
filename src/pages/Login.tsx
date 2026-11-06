@@ -30,7 +30,7 @@ export default function Login() {
   };
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
+    <div className="grid grid-cols-1 min-h-screen lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
       <section className="relative hidden overflow-hidden bg-brand-900 text-white lg:flex lg:flex-col">
         <div className="pattern-grid absolute inset-0 opacity-60" />
         <div className="absolute -right-32 -top-32 h-96 w-96 rounded-full bg-brand-700/40 blur-3xl" />

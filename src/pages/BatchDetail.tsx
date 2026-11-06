@@ -107,7 +107,7 @@ export default function BatchDetail() {
 
         {batch.status === 'verified' && (
           <Card className="overflow-hidden">
-            <div className="grid gap-px bg-slate-100 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-px bg-slate-100 sm:grid-cols-2 lg:grid-cols-4">
               <Tile tone="green" label="Matched · will be paid" value={num(c.matched)} />
               <Tile tone="yellow" label="Partial / duplicate · your decision" value={num(c.review + c.duplicate)} />
               <Tile tone="red" label="Mismatch / invalid · blocked" value={num(c.mismatch + c.invalid)} />
@@ -157,7 +157,7 @@ export default function BatchDetail() {
 
         {(batch.status === 'completed' || batch.status === 'completed_with_failures') && (
           <Card className="overflow-hidden">
-            <div className="grid gap-px bg-slate-100 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-px bg-slate-100 sm:grid-cols-2 lg:grid-cols-4">
               <Tile tone="green" label={`Credited · ${num(c.success)} beneficiaries`} value={naira(c.paidAmount)} />
               <Tile tone={c.failed ? 'red' : 'green'} label="Failed at destination bank" value={c.failed ? `${num(c.failed)} · ${naira(c.failedAmount)}` : 'None'} />
               <Tile tone="yellow" label="Held back before payment" value={num(c.total - c.included)} />
@@ -177,10 +177,10 @@ export default function BatchDetail() {
         )}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Card className="min-w-0">
           <div className="no-print flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3">
-            <div className="flex flex-1 flex-wrap gap-1">
+            <div className="flex min-w-0 flex-1 basis-full flex-wrap gap-1 lg:basis-auto">
               {tabs.map((t) => (
                 <button key={t.key} onClick={() => { setFilter(t.key); setPage(0); }}
                   className={cx('rounded-md px-2.5 py-1 text-xs font-semibold transition', filter === t.key ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100')}>
@@ -188,20 +188,23 @@ export default function BatchDetail() {
                 </button>
               ))}
             </div>
-            <div className="relative w-full sm:w-64">
+            <div className="relative w-full lg:w-64">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder="Name, account, ID or reference" className="py-1.5 pl-9 text-xs" />
             </div>
           </div>
-          <div className="overflow-x-auto">
+          <ul className="divide-y divide-slate-100 md:hidden">
+            {pageRows.map((it) => <ItemCard key={it.id} it={it} batchId={batch.id} editable={isDraftOwner} />)}
+          </ul>
+          <div className="hidden overflow-x-auto md:block">
             <table className="table-base">
               <thead><tr><th>Row</th><th>Beneficiary</th><th>Account</th><th>Name at bank</th><th className="text-right">Amount</th><th>Verification</th><th>Payment</th><th className="no-print" /></tr></thead>
               <tbody>
                 {pageRows.map((it) => <ItemRow key={it.id} it={it} batchId={batch.id} editable={isDraftOwner} />)}
               </tbody>
             </table>
-            {pageRows.length === 0 && <Empty icon={<Search className="h-5 w-5" />} title="No rows match this view" />}
           </div>
+          {pageRows.length === 0 && <Empty icon={<Search className="h-5 w-5" />} title="No rows match this view" />}
           <Pagination page={page} pages={pages} total={rows.length} pageSize={PAGE} onPage={setPage} />
         </Card>
 
@@ -298,6 +301,37 @@ function ItemRow({ it, batchId, editable }: { it: BatchItem; batchId: string; ed
         )}
       </td>
     </tr>
+  );
+}
+
+function ItemCard({ it, batchId, editable }: { it: BatchItem; batchId: string; editable: boolean }) {
+  const decidable = editable && (it.verify === 'review' || it.verify === 'duplicate');
+  const toggle = () => {
+    try { setItemsIncluded(batchId, [it.id], !it.include); } catch (e) { toast('error', 'Not changed', e instanceof ActionError ? e.message : String(e)); }
+  };
+  return (
+    <li className="px-4 py-3.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-slate-900">{it.submittedName}</p>
+          <p className="font-mono text-xs text-slate-500">{it.accountNumber} · {bankShort(it.bankCode)}</p>
+        </div>
+        <p className="shrink-0 text-sm font-semibold tabular text-slate-900">{naira(it.amount)}</p>
+      </div>
+      {it.resolvedName && it.verify !== 'matched' && (
+        <p className={cx('mt-1.5 text-xs', it.verify === 'mismatch' ? 'text-danger-700' : 'text-slate-600')}>Bank: {it.resolvedName} · {pct(it.score ?? 0, 0)} match</p>
+      )}
+      {!it.resolvedName && it.verifyNote && it.verify !== 'pending' && <p className="mt-1.5 text-xs text-danger-700">{it.verifyNote}</p>}
+      {it.failureReason && <p className="mt-1.5 text-xs text-danger-600">{it.failureReason}</p>}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <VerifyBadge status={it.verify} />
+        {it.pay && <PayBadge status={it.pay} />}
+        <span className="ml-auto flex gap-2">
+          {decidable && <Button size="sm" variant={it.include ? 'secondary' : 'gold'} onClick={toggle}>{it.include ? 'Exclude' : 'Accept'}</Button>}
+          {it.pay === 'success' && <Link to={`/receipt/${batchId}/${it.id}`} className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700"><FileText className="h-3.5 w-3.5" /> Receipt</Link>}
+        </span>
+      </div>
+    </li>
   );
 }
 

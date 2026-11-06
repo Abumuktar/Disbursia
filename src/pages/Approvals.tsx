@@ -24,7 +24,7 @@ export default function Approvals() {
       {queue.length === 0 ? (
         <Card><Empty icon={<CheckCircle2 className="h-5 w-5" />} title="Nothing awaiting authorization">New batches appear here as soon as an officer submits them.</Empty></Card>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {queue.map((b) => {
             const c = batchSummary(b);
             const p = programme(b.programmeId);

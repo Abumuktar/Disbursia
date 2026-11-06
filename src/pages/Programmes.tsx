@@ -42,14 +42,14 @@ export default function Programmes() {
             </div>
           </div>
         </div>
-        <dl className="grid gap-6 px-6 py-5 sm:grid-cols-3">
+        <dl className="grid grid-cols-1 gap-6 px-6 py-5 sm:grid-cols-3">
           <KV label="Second signatory required above">{naira(settings.secondSignatoryThreshold)}</KV>
           <KV label="Auto-accept name match at">{Math.round(settings.autoAcceptScore * 100)}% or higher</KV>
           <KV label="Block name match below">{Math.round(settings.reviewScore * 100)}%</KV>
         </dl>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {stats.map(({ p, paid, credited, last }) => (
           <Card key={p.id}>
             <CardHeader title={<span className="flex items-center gap-2"><span className="rounded bg-gold-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-gold-800">{p.code}</span>{p.name}</span>}

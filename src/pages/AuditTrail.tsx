@@ -66,22 +66,36 @@ export default function AuditTrail() {
 
       <Card>
         <div className="flex flex-wrap gap-3 border-b border-slate-100 p-4">
-          <div className="relative min-w-[220px] flex-1">
+          <div className="relative w-full sm:w-auto sm:min-w-[220px] sm:flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder="Search summary, actor or hash prefix" className="pl-9" />
           </div>
-          <Select value={action} onChange={(e) => { setAction(e.target.value); setPage(0); }} className="w-auto" aria-label="Action">
+          <Select value={action} onChange={(e) => { setAction(e.target.value); setPage(0); }} className="w-full sm:w-auto" aria-label="Action">
             <option value="">All actions</option>
             {actions.map((a) => <option key={a} value={a}>{a.replace(/_/g, ' ')}</option>)}
           </Select>
-          <Select value={actor} onChange={(e) => { setActor(e.target.value); setPage(0); }} className="w-auto" aria-label="Actor">
+          <Select value={actor} onChange={(e) => { setActor(e.target.value); setPage(0); }} className="w-full sm:w-auto" aria-label="Actor">
             <option value="">All actors</option>
             <option value="system">Disbursia (system)</option>
             {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
           </Select>
           {entity && <Button variant="secondary" size="sm" onClick={() => setParams({})}>Batch {refOf(entity)} ✕</Button>}
         </div>
-        <div className="overflow-x-auto">
+        <ul className="divide-y divide-slate-100 md:hidden">
+          {list.slice(page * PAGE, (page + 1) * PAGE).map((e) => (
+            <li key={e.seq}>
+              <button onClick={() => setOpen(e)} className="block w-full px-4 py-3 text-left active:bg-slate-50">
+                <div className="flex items-center justify-between gap-2">
+                  <Badge tone={tone(e.action)}>{e.action.replace(/_/g, ' ')}</Badge>
+                  <span className="font-mono text-[11px] text-slate-400">#{e.seq}</span>
+                </div>
+                <p className="mt-1.5 text-[13px] text-slate-700">{e.summary}</p>
+                <p className="mt-1 text-[11px] text-slate-400">{e.actorName} · {dateTime(e.at)}</p>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="hidden overflow-x-auto md:block">
           <table className="table-base">
             <thead><tr><th>#</th><th>Time</th><th>Actor</th><th>Action</th><th>Summary</th><th>Record</th><th>Hash</th></tr></thead>
             <tbody>
@@ -106,7 +120,7 @@ export default function AuditTrail() {
         {open && (
           <div className="space-y-5 text-sm">
             <p className="text-slate-700">{open.summary}</p>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <StateBox title="Prior state" data={open.before} tone="gray" />
               <StateBox title="New state" data={open.after} tone="green" />
             </div>

@@ -32,7 +32,7 @@ export default function NewDisbursement() {
   const [parsed, setParsed] = useState<ParseResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [drag, setDrag] = useState(false);
-  const [sampleSize, setSampleSize] = useState(1000);
+  const [sampleSize, setSampleSize] = useState(200);
   const inputRef = useRef<HTMLInputElement>(null);
   const prog = programmes.find((p) => p.id === programmeId)!;
 
@@ -86,11 +86,11 @@ export default function NewDisbursement() {
       <PageHeader eyebrow="Step 1 of 3 · Prepare" title="New disbursement" subtitle="Choose the programme, upload the beneficiary schedule and verify every account against the bank's own record before anything is paid." />
       <Stepper step={0} />
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-6">
           <Card>
             <CardHeader title="Payment details" />
-            <div className="grid gap-5 p-5 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-5 p-5 sm:grid-cols-2">
               <div>
                 <Label htmlFor="prog">Programme</Label>
                 <Select id="prog" value={programmeId} onChange={(e) => setProgrammeId(e.target.value)}>
@@ -146,7 +146,7 @@ export default function NewDisbursement() {
                     <Sparkles className="h-4 w-4 text-gold-700" />
                     <span className="flex-1 text-gold-900">No file to hand? Generate a sample {prog.name.toLowerCase()} schedule.</span>
                     <Select value={sampleSize} onChange={(e) => setSampleSize(Number(e.target.value))} className="w-auto py-1.5 text-xs" aria-label="Sample size">
-                      {[200, 1000, 5000, 20000].map((n) => <option key={n} value={n}>{num(n)} rows</option>)}
+                      {[100, 200, 500, 1000, 5000, 20000].map((n) => <option key={n} value={n}>{num(n)} rows</option>)}
                     </Select>
                     <Button size="sm" variant="gold" onClick={useSample}>Generate</Button>
                   </div>

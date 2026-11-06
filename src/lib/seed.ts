@@ -20,9 +20,11 @@ const USERS: User[] = ([
  * live Sterling Bank NUBAN before going to production.
  */
 export const SOURCE_ACCOUNT: TreasuryAccount = {
-  id: 'a1', name: 'Abucore Enterprises', bankCode: '232', accountNumber: '0087145266', balance: 2_500_000_000_00,
+  id: 'a1', name: 'Abucore Enterprises', bankCode: '232', accountNumber: '0147716203', balance: 2_500_000_000_00,
 };
 const ACCOUNTS: TreasuryAccount[] = [SOURCE_ACCOUNT];
+/** Current available balance on the source account (kobo). */
+export const OPENING_BALANCE = 18_000_000_00;
 
 const PROGRAMMES: Programme[] = [
   { id: 'p1', code: 'PEN', name: 'Monthly Pensions', agency: 'Katsina State Pension Board', description: 'Monthly pension to retired state and local government staff.', defaultAccountId: 'a1', enrolled: 20000 },
@@ -76,13 +78,13 @@ export function seedState(): AppState {
     for (const p of PROGRAMMES) {
       if (p.code === 'FERT' && back % 2 === 1) continue; // fertilizer runs every other month
       const isCurrent = back === 0;
-      if (isCurrent && p.code !== 'PEN') continue;
+      if (isCurrent && p.code !== 'YEAP') continue;
       const r = mulberry32(seed++);
       const day = isCurrent ? Math.max(1, Math.min(now.getDate() - 1, 3)) : 20 + Math.floor(r() * 5);
       const created = new Date(month.getFullYear(), month.getMonth(), day, 9, 10 + Math.floor(r() * 30));
       counter[p.code] = (counter[p.code] ?? 0) + 1;
       const reference = batchReference(p.code, created, counter[p.code]);
-      const rows = generateBeneficiaries(p.code, COHORT[p.code], 1000 + seed, 0.002);
+      const rows = generateBeneficiaries(p.code, isCurrent ? 400 : COHORT[p.code], 1000 + seed, 0.002);
       let items: BatchItem[] = rows.map((row, i) => ({
         id: `${reference}-${i + 1}`, row: row.row, beneficiaryId: row.beneficiaryId, accountNumber: row.accountNumber,
         bankCode: row.bankCode, submittedName: row.name, amount: row.amount, verify: 'pending', include: false,
@@ -168,6 +170,9 @@ export function seedState(): AppState {
       batches.push(batch);
     }
   }
+
+  // Opening position for the demo: the source account currently holds exactly ₦18,000,000.00.
+  accounts[0].balance = OPENING_BALANCE;
 
   events.sort((a, b) => a.at.localeCompare(b.at));
   const audit: AuditEntry[] = [];

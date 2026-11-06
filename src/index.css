@@ -43,3 +43,10 @@
   .reveal { opacity: 1; transform: none; transition: none; }
   .animate-float, .animate-drift, .animate-row, .animate-pulse-ring { animation: none; }
 }
+
+/* Grid and flex children may shrink below their content width; tables scroll inside their own wrapper. */
+.grid > * { min-width: 0; }
+@keyframes marquee { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+.animate-marquee { animation: marquee 38s linear infinite; }
+.animate-marquee:hover { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .animate-marquee { animation: none; } }

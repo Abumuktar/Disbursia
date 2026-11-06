@@ -73,7 +73,7 @@ export default function Receipt() {
             </div>
           </div>
 
-          <div className="mt-8 grid gap-6 sm:grid-cols-2">
+          <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
             <Section title="Beneficiary">
               <F k="Account name" v={it.resolvedName ?? it.submittedName} strong />
               <F k="Account number" v={it.accountNumber} mono />
@@ -101,7 +101,7 @@ export default function Receipt() {
           </Section>
 
           <Section title="Authorized by" className="mt-6">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {batch.signatures.map((s) => (
                 <div key={s.userId} className="rounded-lg border border-slate-200 px-4 py-3">
                   <p className="font-serif text-lg italic text-brand-800">{s.name}</p>
